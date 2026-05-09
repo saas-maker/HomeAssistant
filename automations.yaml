@@ -25,7 +25,7 @@
         {% set total = states.light | list | count %}
         {% set dead = states.light | selectattr('state', 'eq', 'unavailable') | list | count %}
         {{ total > 0 and dead == total }}
-    - service: homeassistant.restart
+    - action: homeassistant.restart
 
 # --- FLEET UPDATE (NIGHTLY & ON-BOOT) ---
 # Pulls latest config at 3 AM or 5 minutes after a system reboot.
@@ -44,4 +44,4 @@
   action:
     # Wait 5 minutes after boot to ensure Wi-Fi and network are fully connected before downloading
     - delay: "00:05:00"
-    - service: shell_command.update_hub
+    - action: shell_command.update_hub
