@@ -1,0 +1,74 @@
+﻿# ==============================================================================
+# 1. DEPLOYMENT VARIABLES (DEFINED HERE ONCE)
+# ==============================================================================
+# We define these anchors inside 'homeassistant' so the config validator ignores them.
+homeassistant:
+  customize:
+    package.node_anchors:
+      installation_id: &id_var !secret installation_id
+      project_id: &proj_var "saas-maker-api-project"
+      creds_file: &creds_var "saas-maker-api-project-5b20c116b047.json"
+
+  # Apply the ID to every entity automatically using the anchor above
+  customize_glob:
+    "*.*":
+      installation_id: *id_var
+
+# ==============================================================================
+# 2. INTEGRATIONS
+# ==============================================================================
+
+default_config:
+
+# --- VIVAJOT RENAMER ---
+viva_renamer:
+  topic: "vivajot-setup"
+  project_id: *proj_var
+  installation_id: *id_var
+  credentials_file: *creds_var
+
+# --- GOOGLE PUBSUB ---
+google_pubsub:
+  project_id: *proj_var
+  credentials_json: *creds_var
+  topic_name: "home-assistant-events"
+  filter:
+    include_entity_globs:
+      - "light.*"
+      - "sensor.*_power"
+      - "sensor.*_power_[0-9]*" # Plug 2, 3, 4...
+      - "binary_sensor.*"
+      - "sensor.*_temperature"
+      - "sensor.vivajot_pulse"
+    exclude_entity_globs:
+      - "*.unnamed*"
+
+# --- STANDARD CONFIGURATION ---
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+template: !include templates.yaml
+
+# --- FLEET PATCHER ---
+# Downloads and applies the latest VivaJot config from central server.
+# IMPORTANT: The update script must NEVER overwrite secrets.yaml.
+shell_command:
+  update_hub: "curl -sL https://vivajot.com/Plugins/VivaJot/HomeAssistant/setup_hub.sh -o /tmp/vivajot_update.sh && bash /tmp/vivajot_update.sh --update"
+
+# Legacy template syntax to support all validators.
+# State changes only when (seconds / 180) rolls over, creating a perfect 3-minute interval pulse.
+sensor:
+  - platform: template
+    sensors:
+      vivajot_pulse:
+        friendly_name: "VivaJot Pulse"
+        value_template: "{{ (as_timestamp(now()) / 180) | int }}"
+
+logger:
+  default: warning
+  logs:
+    homeassistant.components.google_pubsub: debug
+    custom_components.viva_renamer: info

@@ -1,0 +1,10 @@
+{
+  "domain": "viva_renamer",
+  "name": "VivaJot Friendly Name Renamer",
+  "version": "1.0.0",
+  "documentation": "https://vivajot.com",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": ["google-cloud-pubsub"],
+  "iot_class": "cloud_push"
+}

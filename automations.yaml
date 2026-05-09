@@ -1,0 +1,47 @@
+﻿# ==============================================================================
+# VIVAJOT FLEET AUTOMATIONS
+# ==============================================================================
+
+# --- ZHA WATCHDOG ---
+# Detects when the Zigbee radio (Sonoff dongle) crashes and auto-recovers.
+# Logic: If ALL mains-powered lights go "unavailable" simultaneously, the radio
+# is dead (individual device failure would never take out every light at once).
+# Checks every 10 min, waits 5 min, re-checks to avoid false positives.
+- alias: "VivaJot ZHA Watchdog"
+  description: "Auto-restarts Home Assistant when Zigbee radio crashes"
+  trigger:
+    - platform: time_pattern
+      minutes: "/10"
+  condition:
+    - condition: template
+      value_template: >
+        {% set total = states.light | list | count %}
+        {% set dead = states.light | selectattr('state', 'eq', 'unavailable') | list | count %}
+        {{ total > 0 and dead == total }}
+  action:
+    - delay: "00:05:00"
+    - condition: template
+      value_template: >
+        {% set total = states.light | list | count %}
+        {% set dead = states.light | selectattr('state', 'eq', 'unavailable') | list | count %}
+        {{ total > 0 and dead == total }}
+    - service: homeassistant.restart
+
+# --- FLEET UPDATE (NIGHTLY & ON-BOOT) ---
+# Pulls latest config at 3 AM or 5 minutes after a system reboot.
+- alias: "VivaJot Fleet Update"
+  description: "Pulls latest configuration from central server"
+  trigger:
+    - platform: time
+      at: "03:00:00"
+    - platform: homeassistant
+      event: start
+  condition:
+    # ANTI-BOOT-LOOP SAFETY: Only allow updates if this automation hasn't run in the last 12 hours.
+    # This guarantees that if the update script forces a restart, the hub will NOT get stuck in an infinite update loop.
+    - condition: template
+      value_template: "{{ state_attr('automation.vivajot_fleet_update', 'last_triggered') == None or (as_timestamp(now()) - as_timestamp(state_attr('automation.vivajot_fleet_update', 'last_triggered'))) > 43200 }}"
+  action:
+    # Wait 5 minutes after boot to ensure Wi-Fi and network are fully connected before downloading
+    - delay: "00:05:00"
+    - service: shell_command.update_hub
