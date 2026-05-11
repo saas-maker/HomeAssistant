@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # VIVAJOT FLEET AUTOMATIONS
 # ==============================================================================
 
@@ -7,10 +7,11 @@
 # Logic: If ALL mains-powered lights go "unavailable" simultaneously, the radio
 # is dead (individual device failure would never take out every light at once).
 # Checks every 10 min, waits 5 min, re-checks to avoid false positives.
-- alias: "VivaJot ZHA Watchdog"
+- id: "vivajot_zha_watchdog"
+  alias: "VivaJot ZHA Watchdog"
   description: "Auto-restarts Home Assistant when Zigbee radio crashes"
   trigger:
-    - platform: time_pattern
+    - trigger: time_pattern
       minutes: "/10"
   condition:
     - condition: template
@@ -29,12 +30,13 @@
 
 # --- FLEET UPDATE (NIGHTLY & ON-BOOT) ---
 # Pulls latest config at 3 AM or 5 minutes after a system reboot.
-- alias: "VivaJot Fleet Update"
+- id: "vivajot_fleet_update"
+  alias: "VivaJot Fleet Update"
   description: "Pulls latest configuration from central server"
   trigger:
-    - platform: time
+    - trigger: time
       at: "03:00:00"
-    - platform: homeassistant
+    - trigger: homeassistant
       event: start
   condition:
     # ANTI-BOOT-LOOP SAFETY: Only allow updates if this automation hasn't run in the last 12 hours.

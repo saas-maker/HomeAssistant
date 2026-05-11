@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # ==============================================================================
 # VivaJot Fleet Updater (ha_updater.sh)
 # ==============================================================================
@@ -39,6 +39,7 @@ if [ "$1" == "--update" ]; then
     mkdir -p "$BACKUP_DIR"
     cp "$CONFIG_DIR/configuration.yaml"  "$BACKUP_DIR/configuration.yaml"  2>/dev/null || true
     cp "$CONFIG_DIR/automations.yaml"    "$BACKUP_DIR/automations.yaml"    2>/dev/null || true
+    cp "$CONFIG_DIR/templates.yaml"      "$BACKUP_DIR/templates.yaml"      2>/dev/null || true
     cp "$COMPONENT_DIR/__init__.py"      "$BACKUP_DIR/__init__.py"         2>/dev/null || true
     cp "$COMPONENT_DIR/manifest.json"    "$BACKUP_DIR/manifest.json"       2>/dev/null || true
 
@@ -46,11 +47,13 @@ if [ "$1" == "--update" ]; then
     curl -sLf "$BASE_URL/configuration.yaml" -o "$CONFIG_DIR/configuration.yaml" || fail=1
     curl -sLf "$BASE_URL/__init__.py"        -o "$COMPONENT_DIR/__init__.py"     || fail=1
     curl -sLf "$BASE_URL/automations.yaml"   -o "$CONFIG_DIR/automations.yaml"   || fail=1
+    curl -sLf "$BASE_URL/templates.yaml"     -o "$CONFIG_DIR/templates.yaml"     || fail=1
     curl -sLf "$BASE_URL/manifest.json"      -o "$COMPONENT_DIR/manifest.json"   || fail=1
 
     if [ "$fail" == "1" ]; then
         cp "$BACKUP_DIR/configuration.yaml" "$CONFIG_DIR/configuration.yaml" 2>/dev/null || true
         cp "$BACKUP_DIR/automations.yaml"   "$CONFIG_DIR/automations.yaml"   2>/dev/null || true
+        cp "$BACKUP_DIR/templates.yaml"     "$CONFIG_DIR/templates.yaml"     2>/dev/null || true
         cp "$BACKUP_DIR/__init__.py"        "$COMPONENT_DIR/__init__.py"     2>/dev/null || true
         cp "$BACKUP_DIR/manifest.json"      "$COMPONENT_DIR/manifest.json"   2>/dev/null || true
         exit 1
@@ -61,6 +64,7 @@ if [ "$1" == "--update" ]; then
     else
         cp "$BACKUP_DIR/configuration.yaml" "$CONFIG_DIR/configuration.yaml"
         cp "$BACKUP_DIR/automations.yaml"   "$CONFIG_DIR/automations.yaml"   2>/dev/null || true
+        cp "$BACKUP_DIR/templates.yaml"     "$CONFIG_DIR/templates.yaml"     2>/dev/null || true
         cp "$BACKUP_DIR/__init__.py"        "$COMPONENT_DIR/__init__.py"     2>/dev/null || true
         cp "$BACKUP_DIR/manifest.json"      "$COMPONENT_DIR/manifest.json"   2>/dev/null || true
     fi
@@ -73,6 +77,7 @@ elif [ -n "$1" ]; then
     curl -sLf "$BASE_URL/__init__.py"        -o "$COMPONENT_DIR/__init__.py"
     curl -sLf "$BASE_URL/manifest.json"      -o "$COMPONENT_DIR/manifest.json"
     curl -sLf "$BASE_URL/automations.yaml"   -o "$CONFIG_DIR/automations.yaml"
+    curl -sLf "$BASE_URL/templates.yaml"     -o "$CONFIG_DIR/templates.yaml"
     echo "Hub provisioned as: $INSTALL_ID"
 else
     echo "Usage: ./ha_updater.sh <INSTALLATION-ID>  or  ./ha_updater.sh --update"

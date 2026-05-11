@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # 1. DEPLOYMENT VARIABLES (DEFINED HERE ONCE)
 # ==============================================================================
 # We define these anchors inside 'homeassistant' so the config validator ignores them.
@@ -58,14 +58,6 @@ template: !include templates.yaml
 shell_command:
   update_hub: "curl -sLf https://raw.githubusercontent.com/saas-maker/HomeAssistant/master/ha_updater.sh -o /tmp/vivajot_update.sh && sed -i 's/\r$//' /tmp/vivajot_update.sh && bash /tmp/vivajot_update.sh --update"
 
-# Legacy template syntax to support all validators.
-# State changes only when (seconds / 180) rolls over, creating a perfect 3-minute interval pulse.
-sensor:
-  - platform: template
-    sensors:
-      vivajot_pulse:
-        friendly_name: "VivaJot Pulse"
-        value_template: "{{ (as_timestamp(now()) / 180) | int }}"
 
 logger:
   default: warning
