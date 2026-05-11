@@ -1,0 +1,8 @@
+# ==============================================================================
+# VIVAJOT TEMPLATE SENSORS (Modern Syntax)
+# ==============================================================================
+# State changes only when (seconds / 180) rolls over, creating a 3-minute pulse.
+- sensor:
+    - name: "VivaJot Pulse"
+      unique_id: "vivajot_pulse"
+      state: "{{ (as_timestamp(now()) / 180) | int }}"
