@@ -1,6 +1,6 @@
-import logging, os, json, threading, time
+import logging, os, json, threading, time, fnmatch
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, device_registry as dr
 from google.cloud import pubsub_v1
 from google.api_core.exceptions import NotFound
 
@@ -15,6 +15,14 @@ def setup(hass: HomeAssistant, config: dict):
     project_id, install_id = conf.get("project_id"), conf.get("installation_id")
     topic_name, creds_file = conf.get("topic"), conf.get("credentials_file")
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = hass.config.path(creds_file)
+
+    # Read entity globs from HA's already-parsed google_pubsub config (single source of truth)
+    pubsub_filter = config.get("google_pubsub", {}).get("filter", {})
+    hass.data[DOMAIN] = {
+        "includes": pubsub_filter.get("include_entity_globs", []),
+        "excludes": pubsub_filter.get("exclude_entity_globs", []),
+    }
+    _LOGGER.info(f"VivaJot: Loaded {len(hass.data[DOMAIN]['includes'])} include globs, {len(hass.data[DOMAIN]['excludes'])} exclude globs from google_pubsub config")
 
     publisher = pubsub_v1.PublisherClient()
     pub_path = publisher.topic_path(project_id, "vivajot-setup-confirmation")
@@ -34,8 +42,7 @@ def setup(hass: HomeAssistant, config: dict):
                         raw = msg.data.decode("utf-8")
                         data = json.loads(raw)
                         if data.get("installation_id") == install_id:
-                            hass.add_job(process_command, hass, data.get("entity_id"), data.get("new_name"), 
-                                        publisher, pub_path, raw, install_id)
+                            hass.add_job(process_command, hass, data, publisher, pub_path, raw, install_id)
                         msg.ack()
                     except Exception as e: _LOGGER.error(f"Msg Err: {e}"); msg.ack()
 
@@ -48,18 +55,57 @@ def setup(hass: HomeAssistant, config: dict):
     threading.Thread(target=run_listener, daemon=True).start()
     return True
 
-async def process_command(hass, eid, name, pub, path, req, inst):
+async def process_command(hass, data, pub, path, req, inst):
+    command = data.get("command")
+    
+    if command == "permit_join":
+        duration = min(data.get("duration", 60), 254)
+        _LOGGER.info(f"VivaJot: Permitting Zigbee devices to join for {duration} seconds...")
+        try:
+            await hass.services.async_call("zha", "permit", {"duration": duration})
+            _LOGGER.info("VivaJot: ZHA permit join started successfully.")
+        except Exception as e:
+            _LOGGER.error(f"ZHA Permit Fail: {e}")
+        return
+
+    if command == "remove_device":
+        eid = data.get("entity_id")
+        if eid:
+            reg = er.async_get(hass)
+            entry = reg.async_get(eid)
+            if entry and entry.device_id:
+                dev_reg = dr.async_get(hass)
+                device = dev_reg.async_get(entry.device_id)
+                if device:
+                    ieee = next((i[1] for i in device.identifiers if i[0] == "zha"), None)
+                    if ieee:
+                        try:
+                            await hass.services.async_call("zha", "remove", {"ieee": ieee})
+                            _LOGGER.info(f"VivaJot: Removed ZHA device {eid} (IEEE: {ieee})")
+                        except Exception as e:
+                            _LOGGER.error(f"VivaJot: Failed to remove ZHA device {eid}: {e}")
+        return
+
+    eid = data.get("entity_id")
+    name = data.get("new_name")
+    
     registry = er.async_get(hass)
     
-    # 1. ZIGBEE SCAN (Matches your '15 Devices' screenshot)
+    # 1. ZIGBEE SCAN
     if not eid:
         _LOGGER.info("VivaJot: Scanning Zigbee Hardware...")
+        globs = hass.data.get(DOMAIN, {})
+        includes = globs.get("includes", [])
+        excludes = globs.get("excludes", [])
         for entry in registry.entities.values():
-            # STRICT FILTER: Only Zigbee (zha), Primary (No Category), and Tangible Domains
             if entry.platform == 'zha' and not entry.entity_category:
-                if entry.entity_id.split('.')[0] in ['light', 'switch', 'binary_sensor', 'sensor']:
-                    final_name = entry.name or entry.original_name or entry.entity_id
-                    await send_to_bq(pub, path, inst, entry.entity_id, final_name, "GET_ALL", "SUCCESS", req, hass)
+                if includes and not any(fnmatch.fnmatch(entry.entity_id, g) for g in includes):
+                    continue
+                if excludes and any(fnmatch.fnmatch(entry.entity_id, g) for g in excludes):
+                    continue
+
+                final_name = entry.name or entry.original_name or entry.entity_id
+                await send_to_bq(pub, path, inst, entry.entity_id, final_name, "GET_ALL", "SUCCESS", req, hass)
         return
 
     # 2. TARGETED COMMANDS
