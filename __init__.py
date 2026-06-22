@@ -98,7 +98,7 @@ async def process_command(hass, data, pub, path, req, inst):
         includes = globs.get("includes", [])
         excludes = globs.get("excludes", [])
         for entry in registry.entities.values():
-            if entry.platform == 'zha' and not entry.entity_category:
+            if entry.platform == 'zha':
                 if includes and not any(fnmatch.fnmatch(entry.entity_id, g) for g in includes):
                     continue
                 if excludes and any(fnmatch.fnmatch(entry.entity_id, g) for g in excludes):

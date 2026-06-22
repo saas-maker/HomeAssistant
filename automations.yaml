@@ -4,29 +4,26 @@
 
 # --- ZHA WATCHDOG ---
 # Detects when the Zigbee radio (Sonoff dongle) crashes and auto-recovers.
-# Logic: If ALL mains-powered lights go "unavailable" simultaneously, the radio
-# is dead (individual device failure would never take out every light at once).
-# Checks every 10 min, waits 5 min, re-checks to avoid false positives.
+# Logic: If ALL lights are "unavailable" for 6 continuous hours, reload ZHA.
+# Uses 6-hour threshold to avoid false alarms from lights turned off at night.
+# ZHA reload takes ~2 seconds and does not interrupt the Pulse or other services.
 - id: "vivajot_zha_watchdog"
   alias: "VivaJot ZHA Watchdog"
-  description: "Auto-restarts Home Assistant when Zigbee radio crashes"
+  description: "Reloads ZHA when Zigbee radio appears crashed"
   trigger:
-    - trigger: time_pattern
-      minutes: "/10"
-  condition:
-    - condition: template
+    - trigger: template
       value_template: >
         {% set total = states.light | list | count %}
         {% set dead = states.light | selectattr('state', 'eq', 'unavailable') | list | count %}
         {{ total > 0 and dead == total }}
+      for: "06:00:00"
   action:
-    - delay: "00:05:00"
-    - condition: template
-      value_template: >
-        {% set total = states.light | list | count %}
-        {% set dead = states.light | selectattr('state', 'eq', 'unavailable') | list | count %}
-        {{ total > 0 and dead == total }}
-    - action: homeassistant.restart
+    - action: homeassistant.reload_config_entry
+      target:
+        entity_id: >
+          {{ integration_entities('zha') | first
+             if integration_entities('zha') | count > 0
+             else '' }}
 
 # --- FLEET UPDATE (NIGHTLY & ON-BOOT) ---
 # Pulls latest config at 3 AM or 5 minutes after a system reboot.
@@ -47,3 +44,6 @@
     # Wait 5 minutes after boot to ensure Wi-Fi and network are fully connected before downloading
     - delay: "00:05:00"
     - action: shell_command.update_hub
+    # Guarantee a reboot even if the update script fails (e.g. internet is down).
+    # If the update script already called 'ha core restart', this line is never reached.
+    - action: homeassistant.restart
