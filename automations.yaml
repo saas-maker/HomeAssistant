@@ -25,14 +25,13 @@
              if integration_entities('zha') | count > 0
              else '' }}
 
-# --- FLEET UPDATE (NIGHTLY & ON-BOOT) ---
-# Pulls latest config at 3 AM or 5 minutes after a system reboot.
+# --- FLEET UPDATE (ON-BOOT) ---
+# Pulls latest config 5 minutes after a system reboot.
+# The nightly reboot automation handles the schedule — no separate time trigger needed.
 - id: "vivajot_fleet_update"
   alias: "VivaJot Fleet Update"
-  description: "Pulls latest configuration from central server"
+  description: "Pulls latest configuration from central server on boot"
   trigger:
-    - trigger: time
-      at: "03:00:00"
     - trigger: homeassistant
       event: start
   condition:
