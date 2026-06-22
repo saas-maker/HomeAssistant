@@ -42,6 +42,7 @@ google_pubsub:
       - "sensor.vivajot_pulse"
     exclude_entity_globs:
       - "*.unnamed*"
+      - "binary_sensor.*_opening*"
 
 # --- STANDARD CONFIGURATION ---
 frontend:
