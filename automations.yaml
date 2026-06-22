@@ -46,3 +46,15 @@
     # Guarantee a reboot even if the update script fails (e.g. internet is down).
     # If the update script already called 'ha core restart', this line is never reached.
     - action: homeassistant.restart
+
+# --- NIGHTLY REBOOT ---
+# Full HA restart at 3 AM to keep the Zigbee radio healthy.
+# This also triggers the fleet update via the boot trigger above.
+- id: "vivajot_nightly_reboot"
+  alias: "VivaJot Nightly Reboot"
+  description: "Restarts Home Assistant nightly to maintain Zigbee stability"
+  trigger:
+    - trigger: time
+      at: "03:00:00"
+  action:
+    - action: homeassistant.restart
