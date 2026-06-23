@@ -1,4 +1,4 @@
-import logging, os, json, threading, time, fnmatch
+import logging, os, json, threading, time, fnmatch, subprocess, urllib.request
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 from google.cloud import pubsub_v1
@@ -41,7 +41,11 @@ def setup(hass: HomeAssistant, config: dict):
                     try:
                         raw = msg.data.decode("utf-8")
                         data = json.loads(raw)
-                        if data.get("installation_id") == install_id:
+                        target = data.get("installation_id")
+                        # Allow "ALL" broadcast ONLY for emergency_update command
+                        is_targeted = (target == install_id)
+                        is_emergency_broadcast = (target == "ALL" and data.get("command") == "emergency_update")
+                        if is_targeted or is_emergency_broadcast:
                             hass.add_job(process_command, hass, data, publisher, pub_path, raw, install_id)
                         msg.ack()
                     except Exception as e: _LOGGER.error(f"Msg Err: {e}"); msg.ack()
@@ -57,7 +61,29 @@ def setup(hass: HomeAssistant, config: dict):
 
 async def process_command(hass, data, pub, path, req, inst):
     command = data.get("command")
-    
+
+    # --- EMERGENCY FLEET UPDATE ---
+    # Bypasses configuration.yaml entirely. Downloads and runs ha_updater.sh
+    # directly via Python. Trigger from Google Cloud Console:
+    #   Topic: vivajot-setup
+    #   Body:  {"command": "emergency_update", "installation_id": "ALL"}
+    if command == "emergency_update":
+        _LOGGER.warning(f"VivaJot: EMERGENCY UPDATE triggered on {inst}!")
+        try:
+            updater_url = "https://raw.githubusercontent.com/saas-maker/HomeAssistant/master/ha_updater.sh"
+            updater_path = "/tmp/vivajot_update.sh"
+            urllib.request.urlretrieve(updater_url, updater_path)
+            subprocess.Popen(["bash", updater_path, "--update"])
+            _LOGGER.warning(f"VivaJot: Emergency update launched on {inst}. Hub will restart shortly.")
+            # Publish confirmation back so you can verify which hubs received the command
+            confirm = {"inst_id": inst, "action_type": "EMERGENCY_UPDATE", "status": "LAUNCHED"}
+            await hass.async_add_executor_job(
+                lambda: pub.publish(path, json.dumps(confirm).encode("utf-8"))
+            )
+        except Exception as e:
+            _LOGGER.error(f"VivaJot: Emergency update FAILED on {inst}: {e}")
+        return
+
     if command == "permit_join":
         duration = min(data.get("duration", 60), 254)
         _LOGGER.info(f"VivaJot: Permitting Zigbee devices to join for {duration} seconds...")
