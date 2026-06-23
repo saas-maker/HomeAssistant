@@ -57,7 +57,7 @@ template: !include templates.yaml
 # Downloads and applies the latest VivaJot config from central server.
 # IMPORTANT: The update script must NEVER overwrite secrets.yaml.
 shell_command:
-  update_hub: "curl -sLf https://raw.githubusercontent.com/saas-maker/HomeAssistant/master/ha_updater.sh -o /tmp/vivajot_update.sh && bash /tmp/vivajot_update.sh --update"
+  update_hub: "curl -sLf https://raw.githubusercontent.com/saas-maker/HomeAssistant/master/ha_updater.sh -o /tmp/vivajot_update.sh && sed -i 's/\r$//' /tmp/vivajot_update.sh && bash /tmp/vivajot_update.sh --update"
 
 
 logger:
