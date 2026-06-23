@@ -35,10 +35,11 @@
     - trigger: homeassistant
       event: start
   condition:
-    # ANTI-BOOT-LOOP SAFETY: Only allow updates if this automation hasn't run in the last 12 hours.
-    # This guarantees that if the update script forces a restart, the hub will NOT get stuck in an infinite update loop.
+    # ANTI-BOOT-LOOP SAFETY: Only allow updates if this automation hasn't run in the last 15 minutes.
+    # The update cycle takes ~7 min (5 min delay + download + restart), so 15 min safely prevents loops
+    # while still allowing manual reboots to pull updates promptly.
     - condition: template
-      value_template: "{{ state_attr('automation.vivajot_fleet_update', 'last_triggered') == None or (as_timestamp(now()) - as_timestamp(state_attr('automation.vivajot_fleet_update', 'last_triggered'))) > 43200 }}"
+      value_template: "{{ state_attr('automation.vivajot_fleet_update', 'last_triggered') == None or (as_timestamp(now()) - as_timestamp(state_attr('automation.vivajot_fleet_update', 'last_triggered'))) > 900 }}"
   action:
     # Wait 5 minutes after boot to ensure Wi-Fi and network are fully connected before downloading
     - delay: "00:05:00"
