@@ -60,6 +60,13 @@ if [ "$1" == "--update" ]; then
     fi
 
     if validate_config; then
+        # Enforce 15-second unavailability timeout for mains-powered Zigbee devices
+        # (lights use wall switches — bulb loses power, HA must detect offline quickly)
+        ZHA_CONFIG="$CONFIG_DIR/.storage/core.config_entries"
+        if [ -f "$ZHA_CONFIG" ] && command -v jq &>/dev/null; then
+            jq '(.data.entries[] | select(.domain=="zha") | .options.custom_configuration.zha_options.consider_unavailable_mains) = 15' \
+                "$ZHA_CONFIG" > /tmp/zha_config_tmp && mv /tmp/zha_config_tmp "$ZHA_CONFIG"
+        fi
         ha core restart
     else
         cp "$BACKUP_DIR/configuration.yaml" "$CONFIG_DIR/configuration.yaml"

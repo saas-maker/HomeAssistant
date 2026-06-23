@@ -22,8 +22,8 @@
       target:
         entity_id: >
           {{ integration_entities('zha') | first
-             if integration_entities('zha') | count > 0
-             else '' }}
+          if integration_entities('zha') | count > 0
+          else '' }}
 
 # --- FLEET UPDATE (ON-BOOT) ---
 # Pulls latest config 5 minutes after a system reboot.
@@ -58,3 +58,30 @@
       at: "03:00:00"
   action:
     - action: homeassistant.restart
+
+# --- PLUG KEEP-ALIVE ---
+# Smart plugs must always stay ON — they are passthrough power monitors.
+# Users control appliances physically; the plug just measures wattage spikes.
+# Two triggers handle both scenarios:
+#   1) Mid-day: only the plug lost power, hub stayed on → template detects it within seconds
+#   2) Full outage: hub also rebooted → boot trigger turns on all plugs after ZHA initializes
+- id: "vivajot_plug_keepalive"
+  alias: "VivaJot Plug Keep-Alive"
+  description: "Re-enables smart plugs after power loss"
+  mode: restart
+  trigger:
+    - trigger: template
+      value_template: >
+        {{ states.switch | selectattr('state', 'eq', 'off') | list | count > 0 }}
+      id: "plugs_off"
+    - trigger: homeassistant
+      event: start
+      id: "full_boot"
+  action:
+    - delay: "{{ '00:00:10' if trigger.id == 'plugs_off' else '00:02:00' }}"
+    - action: switch.turn_on
+      target:
+        entity_id: >
+          {{ states.switch | selectattr('state', 'eq', 'off')
+          | map(attribute='entity_id') | list }}
+
