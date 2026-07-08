@@ -141,6 +141,16 @@ async def process_command(hass, data, pub, path, req, inst):
             if name and name.strip():
                 registry.async_update_entity(eid, name=name)
                 action, final_name = "RENAME", name
+                
+                # Automatically rename the sibling battery to match
+                if entry.device_id:
+                    for sib in registry.entities.values():
+                        if sib.device_id == entry.device_id and sib.entity_id != eid and sib.entity_id.endswith("_battery"):
+                            try:
+                                registry.async_update_entity(sib.entity_id, name=f"{name} Battery")
+                                _LOGGER.info(f"VivaJot: Renamed sibling battery {sib.entity_id} to '{name} Battery'")
+                            except Exception as be:
+                                _LOGGER.warning(f"VivaJot: Silent fail renaming battery {sib.entity_id}: {be}")
             else:
                 action, final_name = "GET_DEVICE", (entry.name or entry.original_name or eid)
             await send_to_bq(pub, path, inst, eid, final_name, action, "SUCCESS", req, hass)

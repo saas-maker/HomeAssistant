@@ -39,6 +39,7 @@ google_pubsub:
       - "sensor.*_power_[0-9]*" # Plug 2, 3, 4...
       - "binary_sensor.*"
       - "sensor.*_temperature"
+      - "sensor.*_battery"
       - "sensor.vivajot_pulse"
     exclude_entity_globs:
       - "*.unnamed*"

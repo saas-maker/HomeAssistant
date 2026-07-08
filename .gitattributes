@@ -1,0 +1,2 @@
+# Ensure shell scripts always use LF line endings (HA OS is Linux)
+*.sh text eol=lf
