@@ -147,8 +147,8 @@ async def process_command(hass, data, pub, path, req, inst):
                     for sib in registry.entities.values():
                         if sib.device_id == entry.device_id and sib.entity_id != eid and sib.entity_id.endswith("_battery"):
                             try:
-                                registry.async_update_entity(sib.entity_id, name=f"{name} Battery")
-                                _LOGGER.info(f"VivaJot: Renamed sibling battery {sib.entity_id} to '{name} Battery'")
+                                registry.async_update_entity(sib.entity_id, new_entity_id=f"{eid}_battery", name=f"{name} Battery")
+                                _LOGGER.info(f"VivaJot: Renamed sibling battery {sib.entity_id} to '{name} Battery' and synced entity ID")
                             except Exception as be:
                                 _LOGGER.warning(f"VivaJot: Silent fail renaming battery {sib.entity_id}: {be}")
             else:
