@@ -112,6 +112,32 @@ async def process_command(hass, data, pub, path, req, inst):
                             _LOGGER.error(f"VivaJot: Failed to remove ZHA device {eid}: {e}")
         return
 
+    if command == "migrate_batteries":
+        _LOGGER.info(f"VivaJot: Executing one-time fleet battery migration on {inst}...")
+        registry = er.async_get(hass)
+        dev_map = {}
+        for e in registry.entities.values():
+            if e.device_id: dev_map.setdefault(e.device_id, []).append(e)
+            
+        for dev_id, entries in dev_map.items():
+            parent = next((e for e in entries if not e.entity_id.endswith("_battery")), None)
+            battery = next((e for e in entries if e.entity_id.endswith("_battery")), None)
+            if parent and battery:
+                p_name = parent.name or parent.original_name or parent.entity_id.split('.')[-1]
+                expected_eid = f"{parent.entity_id}_battery"
+                expected_name = f"{p_name} Battery"
+                if battery.entity_id != expected_eid or battery.name != expected_name:
+                    try:
+                        registry.async_update_entity(battery.entity_id, new_entity_id=expected_eid, name=expected_name)
+                        _LOGGER.info(f"VivaJot: Migrated battery {battery.entity_id} -> {expected_eid}")
+                    except Exception as be:
+                        _LOGGER.warning(f"VivaJot: Migration fail for {battery.entity_id}: {be}")
+        
+        # Publish confirmation so you know which hubs successfully ran it
+        confirm = {"inst_id": inst, "action_type": "MIGRATE_BATTERIES", "status": "SUCCESS"}
+        await hass.async_add_executor_job(lambda: pub.publish(path, json.dumps(confirm).encode("utf-8")))
+        return
+
     eid = data.get("entity_id")
     name = data.get("new_name")
     
