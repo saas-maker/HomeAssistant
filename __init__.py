@@ -120,7 +120,7 @@ async def process_command(hass, data, pub, path, req, inst):
             if e.device_id: dev_map.setdefault(e.device_id, []).append(e)
             
         for dev_id, entries in dev_map.items():
-            battery = next((e for e in entries if e.entity_id.endswith("_battery")), None)
+            battery = next((e for e in entries if "_battery" in e.entity_id), None)
             if not battery: continue
             
             # Intelligent Parent Selection (Ignore firmware/diagnostic entities)
@@ -180,7 +180,7 @@ async def process_command(hass, data, pub, path, req, inst):
                 # Automatically rename the sibling battery to match
                 if entry.device_id:
                     for sib in registry.entities.values():
-                        if sib.device_id == entry.device_id and sib.entity_id != eid and sib.entity_id.endswith("_battery"):
+                        if sib.device_id == entry.device_id and sib.entity_id != eid and "_battery" in sib.entity_id:
                             try:
                                 b_domain = sib.entity_id.split('.')[0]
                                 p_base = eid.split('.')[1]
