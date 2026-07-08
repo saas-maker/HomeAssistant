@@ -120,9 +120,16 @@ async def process_command(hass, data, pub, path, req, inst):
             if e.device_id: dev_map.setdefault(e.device_id, []).append(e)
             
         for dev_id, entries in dev_map.items():
-            parent = next((e for e in entries if not e.entity_id.endswith("_battery")), None)
             battery = next((e for e in entries if e.entity_id.endswith("_battery")), None)
-            if parent and battery:
+            if not battery: continue
+            
+            # Intelligent Parent Selection (Ignore firmware/diagnostic entities)
+            valid_parents = [e for e in entries if e.entity_id != battery.entity_id and e.domain not in ('update', 'button')]
+            parent = next((e for e in valid_parents if e.name), None) # Priority 1: Renamed entities
+            if not parent: parent = next((e for e in valid_parents if e.domain in ('binary_sensor', 'light', 'switch')), None)
+            if not parent and valid_parents: parent = valid_parents[0]
+
+            if parent:
                 p_name = parent.name or parent.original_name or parent.entity_id.split('.')[-1]
                 p_base = parent.entity_id.split('.')[-1]
                 b_domain = battery.entity_id.split('.')[0]
