@@ -124,7 +124,9 @@ async def process_command(hass, data, pub, path, req, inst):
             battery = next((e for e in entries if e.entity_id.endswith("_battery")), None)
             if parent and battery:
                 p_name = parent.name or parent.original_name or parent.entity_id.split('.')[-1]
-                expected_eid = f"{parent.entity_id}_battery"
+                p_base = parent.entity_id.split('.')[-1]
+                b_domain = battery.entity_id.split('.')[0]
+                expected_eid = f"{b_domain}.{p_base}_battery"
                 expected_name = f"{p_name} Battery"
                 if battery.entity_id != expected_eid or battery.name != expected_name:
                     try:
@@ -173,7 +175,10 @@ async def process_command(hass, data, pub, path, req, inst):
                     for sib in registry.entities.values():
                         if sib.device_id == entry.device_id and sib.entity_id != eid and sib.entity_id.endswith("_battery"):
                             try:
-                                registry.async_update_entity(sib.entity_id, new_entity_id=f"{eid}_battery", name=f"{name} Battery")
+                                b_domain = sib.entity_id.split('.')[0]
+                                p_base = eid.split('.')[1]
+                                new_eid = f"{b_domain}.{p_base}_battery"
+                                registry.async_update_entity(sib.entity_id, new_entity_id=new_eid, name=f"{name} Battery")
                                 _LOGGER.info(f"VivaJot: Renamed sibling battery {sib.entity_id} to '{name} Battery' and synced entity ID")
                             except Exception as be:
                                 _LOGGER.warning(f"VivaJot: Silent fail renaming battery {sib.entity_id}: {be}")
