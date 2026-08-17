@@ -8,8 +8,46 @@
 
 CONFIG_DIR="/config"
 BACKUP_DIR="/config/.vivajot_backup"
+STORAGE_SNAPSHOT_DIR="/config/.vivajot_backup/storage"
 COMPONENT_DIR="/config/custom_components/viva_renamer"
-BASE_URL="https://raw.githubusercontent.com/saas-maker/HomeAssistant/master"
+# VIVAJOT_BASE_URL override allows canary-testing from a branch or scratch repo.
+BASE_URL="${VIVAJOT_BASE_URL:-https://raw.githubusercontent.com/saas-maker/HomeAssistant/master}"
+
+# Critical HA state that cannot be rebuilt from this repo. zigbee.db holds the
+# radio's network state; the .storage files hold integrations and entity names.
+STORAGE_FILES=".storage/core.config_entries .storage/core.entity_registry .storage/core.device_registry zigbee.db"
+
+# ------------------------------------------------------------------------------
+# SELF-HEAL: recover from a corrupted (zero-length) or missing core.config_entries.
+# HA renames the corrupt file aside and boots with an empty registry, so the hub
+# stays "alive" while every integration is gone. Restore our last-known-good
+# snapshot and restart before that state sticks.
+# ------------------------------------------------------------------------------
+self_heal() {
+    CE="$CONFIG_DIR/.storage/core.config_entries"
+    [ -s "$CE" ] && return 0
+    [ -s "$STORAGE_SNAPSHOT_DIR/core.config_entries" ] || return 0
+
+    echo "VivaJot: core.config_entries missing or empty — restoring snapshot"
+    for f in $STORAGE_FILES; do
+        if [ -s "$STORAGE_SNAPSHOT_DIR/$(basename "$f")" ]; then
+            cp "$STORAGE_SNAPSHOT_DIR/$(basename "$f")" "$CONFIG_DIR/$f"
+        fi
+    done
+    ha core restart
+    exit 0
+}
+
+# Snapshot critical state so self_heal has something to restore.
+# Only overwrite the snapshot with non-empty source files.
+snapshot_storage() {
+    mkdir -p "$STORAGE_SNAPSHOT_DIR"
+    for f in $STORAGE_FILES; do
+        if [ -s "$CONFIG_DIR/$f" ]; then
+            cp "$CONFIG_DIR/$f" "$STORAGE_SNAPSHOT_DIR/$(basename "$f")" 2>/dev/null || true
+        fi
+    done
+}
 
 # ------------------------------------------------------------------------------
 # YAML SYNTAX VALIDATOR
@@ -36,6 +74,7 @@ except Exception as e:
 }
 
 if [ "$1" == "--update" ]; then
+    self_heal
     mkdir -p "$BACKUP_DIR"
     cp "$CONFIG_DIR/configuration.yaml"  "$BACKUP_DIR/configuration.yaml"  2>/dev/null || true
     cp "$CONFIG_DIR/automations.yaml"    "$BACKUP_DIR/automations.yaml"    2>/dev/null || true
@@ -62,11 +101,21 @@ if [ "$1" == "--update" ]; then
     if validate_config; then
         # Enforce 15-second unavailability timeout for mains-powered Zigbee devices
         # (lights use wall switches — bulb loses power, HA must detect offline quickly)
+        # Gated: only rewrite core.config_entries when the value actually needs
+        # changing, and only swap the file in if the result is valid non-empty JSON.
+        # Rewriting this file under a live HA is a corruption risk — minimize it.
         ZHA_CONFIG="$CONFIG_DIR/.storage/core.config_entries"
-        if [ -f "$ZHA_CONFIG" ] && command -v jq &>/dev/null; then
-            jq '(.data.entries[] | select(.domain=="zha") | .options.custom_configuration.zha_options.consider_unavailable_mains) = 15' \
-                "$ZHA_CONFIG" > /tmp/zha_config_tmp && mv /tmp/zha_config_tmp "$ZHA_CONFIG"
+        if [ -s "$ZHA_CONFIG" ] && command -v jq &>/dev/null; then
+            current=$(jq '[.data.entries[] | select(.domain=="zha") | .options.custom_configuration.zha_options.consider_unavailable_mains] | first' "$ZHA_CONFIG" 2>/dev/null)
+            if [ "$current" != "15" ]; then
+                jq '(.data.entries[] | select(.domain=="zha") | .options.custom_configuration.zha_options.consider_unavailable_mains) = 15' \
+                    "$ZHA_CONFIG" > /tmp/zha_config_tmp \
+                && [ -s /tmp/zha_config_tmp ] \
+                && jq empty /tmp/zha_config_tmp 2>/dev/null \
+                && mv /tmp/zha_config_tmp "$ZHA_CONFIG"
+            fi
         fi
+        snapshot_storage
         ha core restart
     else
         cp "$BACKUP_DIR/configuration.yaml" "$CONFIG_DIR/configuration.yaml"

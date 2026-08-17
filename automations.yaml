@@ -48,6 +48,19 @@
     # If the update script already called 'ha core restart', this line is never reached.
     - action: homeassistant.restart
 
+# --- NIGHTLY BACKUP ---
+# Creates a local HA backup at 2:45 AM, 15 minutes before the nightly reboot.
+# Guarantees every hub has a fresh restore point regardless of whether
+# automatic backups were ever enabled in the UI.
+- id: "vivajot_nightly_backup"
+  alias: "VivaJot Nightly Backup"
+  description: "Creates a local backup before the nightly reboot"
+  trigger:
+    - trigger: time
+      at: "02:45:00"
+  action:
+    - action: backup.create
+
 # --- NIGHTLY REBOOT ---
 # Full HA restart at 3 AM to keep the Zigbee radio healthy.
 # This also triggers the fleet update via the boot trigger above.

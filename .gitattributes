@@ -1,2 +1,2 @@
-# Ensure shell scripts always use LF line endings (HA OS is Linux)
-*.sh text eol=lf
+# Hubs run Linux — everything this repo ships must have LF line endings.
+* text eol=lf
