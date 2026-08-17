@@ -38,6 +38,18 @@ self_heal() {
     exit 0
 }
 
+# Keep only the 5 newest HA backups. The nightly backup.create automation makes
+# manual backups, which HA never auto-prunes — without this, they slowly fill
+# the disk (and a full disk corrupts .storage, the failure we're preventing).
+prune_backups() {
+    command -v jq &>/dev/null || return 0
+    ha backups list --raw-json 2>/dev/null \
+        | jq -r '.data.backups | sort_by(.date) | reverse | .[5:] | .[].slug' 2>/dev/null \
+        | while read -r slug; do
+            [ -n "$slug" ] && ha backups remove "$slug"
+        done
+}
+
 # Snapshot critical state so self_heal has something to restore.
 # Only overwrite the snapshot with non-empty source files.
 snapshot_storage() {
@@ -116,6 +128,7 @@ if [ "$1" == "--update" ]; then
             fi
         fi
         snapshot_storage
+        prune_backups
         ha core restart
     else
         cp "$BACKUP_DIR/configuration.yaml" "$CONFIG_DIR/configuration.yaml"
