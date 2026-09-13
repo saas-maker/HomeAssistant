@@ -41,6 +41,8 @@ google_pubsub:
       - "sensor.*_temperature"
       - "sensor.*_battery"
       - "sensor.vivajot_pulse"
+      - "sensor.vivajot_devices_online"
+      - "sensor.vivajot_devices_total"
     exclude_entity_globs:
       - "*.unnamed*"
       - "binary_sensor.*_opening*"

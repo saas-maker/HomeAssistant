@@ -6,3 +6,16 @@
     - name: "VivaJot Pulse"
       unique_id: "vivajot_pulse"
       state: "{{ (as_timestamp(now()) / 180) | int }}"
+
+    # Device-health heartbeat: how many Zigbee-facing entities are actually
+    # responding. Lets the cloud catch "hub alive but devices dead" (dongle
+    # failure, registry corruption) instead of trusting the Pulse alone —
+    # a hub once sat broken for 3 weeks while pulsing "healthy".
+    - name: "VivaJot Devices Online"
+      unique_id: "vivajot_devices_online"
+      state: >
+        {{ ((states.light | list) + (states.binary_sensor | list) + (states.switch | list))
+           | rejectattr('state', 'in', ['unavailable', 'unknown']) | list | count }}
+    - name: "VivaJot Devices Total"
+      unique_id: "vivajot_devices_total"
+      state: "{{ ((states.light | list) + (states.binary_sensor | list) + (states.switch | list)) | list | count }}"
