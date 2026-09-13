@@ -59,6 +59,10 @@ template: !include templates.yaml
 # IMPORTANT: The update script must NEVER overwrite secrets.yaml.
 shell_command:
   update_hub: "curl -sLf https://raw.githubusercontent.com/saas-maker/HomeAssistant/master/ha_updater.sh -o /tmp/vivajot_update.sh && sed -i 's/\r$//' /tmp/vivajot_update.sh && bash /tmp/vivajot_update.sh --update"
+  # Nightly backup via the Supervisor CLI instead of the backup.create service,
+  # which HA core removed in a 2026 release. The CLI interface is stable across
+  # core versions (the updater already relies on it for restart and pruning).
+  create_backup: "ha backups new --name VivaJot-Nightly"
 
 
 logger:

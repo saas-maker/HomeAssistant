@@ -59,7 +59,7 @@
     - trigger: time
       at: "02:45:00"
   action:
-    - action: backup.create
+    - action: shell_command.create_backup
 
 # --- NIGHTLY REBOOT ---
 # Full HA restart at 3 AM to keep the Zigbee radio healthy.
