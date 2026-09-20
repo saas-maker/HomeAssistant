@@ -34,7 +34,9 @@ self_heal() {
             cp "$STORAGE_SNAPSHOT_DIR/$(basename "$f")" "$CONFIG_DIR/$f"
         fi
     done
-    ha core restart
+    # No `ha core restart` here: the `ha` CLI does not exist inside the Core
+    # container this script runs in (it returns 127). The caller restarts HA —
+    # the fleet-update automation's homeassistant.restart, or viva_renamer.
     exit 0
 }
 
@@ -129,13 +131,18 @@ if [ "$1" == "--update" ]; then
         fi
         snapshot_storage
         prune_backups
-        ha core restart
+        # Restart is the caller's job (see self_heal note): `ha` is unavailable
+        # here, and leaving it in made every successful update exit 127.
+        exit 0
     else
         cp "$BACKUP_DIR/configuration.yaml" "$CONFIG_DIR/configuration.yaml"
         cp "$BACKUP_DIR/automations.yaml"   "$CONFIG_DIR/automations.yaml"   2>/dev/null || true
         cp "$BACKUP_DIR/templates.yaml"     "$CONFIG_DIR/templates.yaml"     2>/dev/null || true
         cp "$BACKUP_DIR/__init__.py"        "$COMPONENT_DIR/__init__.py"     2>/dev/null || true
         cp "$BACKUP_DIR/manifest.json"      "$COMPONENT_DIR/manifest.json"   2>/dev/null || true
+        # Rolled back: say so. A non-zero exit shows up in the HA log (and in the
+        # emergency_update confirmation) instead of a rollback passing as success.
+        exit 1
     fi
 
 elif [ -n "$1" ]; then

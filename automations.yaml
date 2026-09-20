@@ -3,27 +3,80 @@
 # ==============================================================================
 
 # --- ZHA WATCHDOG ---
-# Detects when the Zigbee radio (Sonoff dongle) crashes and auto-recovers.
-# Logic: If ALL lights are "unavailable" for 6 continuous hours, reload ZHA.
-# Uses 6-hour threshold to avoid false alarms from lights turned off at night.
-# ZHA reload takes ~2 seconds and does not interrupt the Pulse or other services.
+# Two different failures, two different remedies:
+#  1) Radio / serial port LOST (the Sept 18 2026 25-hour outage). ZHA's config
+#     entry falls into setup-retry and its entities vanish, so
+#     integration_entities('zha') is EMPTY (that is also why the old action
+#     crashed with "invalid entity IDs"). Neither a core restart nor a ZHA reload
+#     can reopen a dropped USB port — only a HOST reboot resets the USB bus.
+#     Bounded to 3 reboots per incident by counter.vivajot_zha_reboots
+#     (configuration.yaml) so a physically dead stick can never loop a hub.
+#  2) Radio present but network HUNG: ZHA is loaded, yet every light has been
+#     unavailable for 6 hours. Remedy is a ZHA reload, as before. 6 hours, NOT
+#     less: consider_unavailable_mains is 15 s, so bulbs switched off at the
+#     wall read as "unavailable" — an evening with all lights off is normal, and
+#     the 3 AM restart resets the timer. Never tie a host reboot to this signal.
+# Template triggers fire only on a false->true transition, so trigger 1 cannot
+# catch a hub that BOOTS with a dead radio; the boot trigger covers that case
+# (and resets the reboot budget after any boot where ZHA came up healthy).
+# now() in the ZHA templates forces a re-check every minute — they reference no
+# entity state, so nothing else would ever re-render them.
 - id: "vivajot_zha_watchdog"
   alias: "VivaJot ZHA Watchdog"
-  description: "Reloads ZHA when Zigbee radio appears crashed"
+  description: "Recovers a crashed Zigbee radio: ZHA reload for a hung network, bounded host reboots for a lost radio"
+  mode: queued
   trigger:
+    - trigger: template
+      value_template: "{% set _ = now() %}{{ integration_entities('zha') | count == 0 }}"
+      for: "00:15:00"
+      id: "zha_down"
+    - trigger: homeassistant
+      event: start
+      id: "boot"
     - trigger: template
       value_template: >
         {% set total = states.light | list | count %}
         {% set dead = states.light | selectattr('state', 'eq', 'unavailable') | list | count %}
         {{ total > 0 and dead == total }}
       for: "06:00:00"
+      id: "lights_dead"
   action:
-    - action: homeassistant.reload_config_entry
-      target:
-        entity_id: >
-          {{ integration_entities('zha') | first
-          if integration_entities('zha') | count > 0
-          else '' }}
+    - choose:
+        # Hung network: reload ZHA (only meaningful while ZHA is actually loaded)
+        - conditions: "{{ trigger.id == 'lights_dead' and integration_entities('zha') | count > 0 }}"
+          sequence:
+            - action: homeassistant.reload_config_entry
+              target:
+                entity_id: "{{ integration_entities('zha') | first }}"
+        # 15 minutes after boot: ZHA healthy -> reset the budget; ZHA absent -> reboot (within budget)
+        - conditions: "{{ trigger.id == 'boot' }}"
+          sequence:
+            - delay: "00:15:00"
+            - if:
+                - condition: template
+                  value_template: "{{ integration_entities('zha') | count > 0 }}"
+              then:
+                - action: counter.reset
+                  target:
+                    entity_id: counter.vivajot_zha_reboots
+              else:
+                - condition: numeric_state
+                  entity_id: counter.vivajot_zha_reboots
+                  below: 3
+                - action: counter.increment
+                  target:
+                    entity_id: counter.vivajot_zha_reboots
+                - action: hassio.host_reboot
+        # Radio lost while running: reboot the host (within budget)
+        - conditions: "{{ trigger.id == 'zha_down' }}"
+          sequence:
+            - condition: numeric_state
+              entity_id: counter.vivajot_zha_reboots
+              below: 3
+            - action: counter.increment
+              target:
+                entity_id: counter.vivajot_zha_reboots
+            - action: hassio.host_reboot
 
 # --- FLEET UPDATE (ON-BOOT) ---
 # Pulls latest config 5 minutes after a system reboot.
@@ -52,14 +105,22 @@
 # Creates a local HA backup at 2:45 AM, 15 minutes before the nightly reboot.
 # Guarantees every hub has a fresh restore point regardless of whether
 # automatic backups were ever enabled in the UI.
+# Uses the Supervisor integration's action, not the `ha` CLI: shell_command runs
+# inside the Core container, where `ha` does not exist (every `ha ...` call in
+# the logs returned 127 "command not found" — no nightly backup ever ran).
+# Config-only ("homeassistant: true") keeps each backup to a few MB.
 - id: "vivajot_nightly_backup"
   alias: "VivaJot Nightly Backup"
-  description: "Creates a local backup before the nightly reboot"
+  description: "Creates a config-only backup before the nightly reboot"
   trigger:
     - trigger: time
       at: "02:45:00"
   action:
-    - action: shell_command.create_backup
+    - action: hassio.backup_partial
+      data:
+        name: "VivaJot-Nightly-{{ now().strftime('%Y%m%d') }}"
+        homeassistant: true
+        compressed: true
 
 # --- NIGHTLY REBOOT ---
 # Full HA restart at 3 AM to keep the Zigbee radio healthy.

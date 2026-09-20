@@ -72,14 +72,29 @@ async def process_command(hass, data, pub, path, req, inst):
         try:
             updater_url = "https://raw.githubusercontent.com/saas-maker/HomeAssistant/master/ha_updater.sh"
             updater_path = "/tmp/vivajot_update.sh"
-            urllib.request.urlretrieve(updater_url, updater_path)
-            subprocess.Popen(["bash", updater_path, "--update"])
-            _LOGGER.warning(f"VivaJot: Emergency update launched on {inst}. Hub will restart shortly.")
+            await hass.async_add_executor_job(urllib.request.urlretrieve, updater_url, updater_path)
+            # Same CRLF guard the shell_command path applies with sed: a stray \r
+            # makes bash fail with 127 (the June 2026 fleet outage).
+            def _strip_cr():
+                with open(updater_path, "rb") as fh:
+                    data = fh.read()
+                with open(updater_path, "wb") as fh:
+                    fh.write(data.replace(b"\r\n", b"\n"))
+            await hass.async_add_executor_job(_strip_cr)
+            # Run the updater to completion (off the event loop), then restart HA
+            # ourselves. The script cannot restart anything: the `ha` CLI does not
+            # exist inside the Core container, so the old fire-and-forget Popen left
+            # updated files unapplied until the 3 AM nightly restart.
+            result = await hass.async_add_executor_job(
+                lambda: subprocess.run(["bash", updater_path, "--update"], timeout=300)
+            )
+            _LOGGER.warning(f"VivaJot: Emergency update finished on {inst} (exit {result.returncode}). Restarting Home Assistant.")
             # Publish confirmation back so you can verify which hubs received the command
-            confirm = {"inst_id": inst, "action_type": "EMERGENCY_UPDATE", "status": "LAUNCHED"}
+            confirm = {"inst_id": inst, "action_type": "EMERGENCY_UPDATE", "status": "APPLIED", "exit_code": result.returncode}
             await hass.async_add_executor_job(
                 lambda: pub.publish(path, json.dumps(confirm).encode("utf-8"))
             )
+            await hass.services.async_call("homeassistant", "restart", blocking=False)
         except Exception as e:
             _LOGGER.error(f"VivaJot: Emergency update FAILED on {inst}: {e}")
         return

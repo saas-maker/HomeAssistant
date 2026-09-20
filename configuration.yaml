@@ -47,6 +47,17 @@ google_pubsub:
       - "*.unnamed*"
       - "binary_sensor.*_opening*"
 
+# --- ZHA WATCHDOG REBOOT BUDGET ---
+# Host reboots the ZHA watchdog has performed for the current radio incident.
+# Reset 15 minutes after any boot where ZHA came up healthy. Caps a physically
+# dead radio at 3 reboot attempts instead of an endless reboot loop.
+counter:
+  vivajot_zha_reboots:
+    name: "VivaJot ZHA watchdog reboots"
+    initial: 0
+    step: 1
+    restore: true
+
 # --- STANDARD CONFIGURATION ---
 frontend:
   themes: !include_dir_merge_named themes
@@ -61,9 +72,11 @@ template: !include templates.yaml
 # IMPORTANT: The update script must NEVER overwrite secrets.yaml.
 shell_command:
   update_hub: "curl -sLf https://raw.githubusercontent.com/saas-maker/HomeAssistant/master/ha_updater.sh -o /tmp/vivajot_update.sh && sed -i 's/\r$//' /tmp/vivajot_update.sh && bash /tmp/vivajot_update.sh --update"
-  # Nightly backup via the Supervisor CLI instead of the backup.create service,
-  # which HA core removed in a 2026 release. The CLI interface is stable across
-  # core versions (the updater already relies on it for restart and pruning).
+  # NOTE: the `ha` CLI is NOT available to shell_command (it runs inside the Core
+  # container, not the host) — every `ha ...` call returns 127. The nightly backup
+  # now uses the hassio.backup_partial action in automations.yaml instead. This
+  # entry is kept only so any stale automation referencing it fails loudly rather
+  # than as an unknown action.
   create_backup: "ha backups new --name VivaJot-Nightly"
 
 
