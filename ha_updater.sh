@@ -113,16 +113,18 @@ if [ "$1" == "--update" ]; then
     fi
 
     if validate_config; then
-        # Enforce 15-second unavailability timeout for mains-powered Zigbee devices
-        # (lights use wall switches — bulb loses power, HA must detect offline quickly)
+        # Enforce 60-second unavailability timeout for mains-powered Zigbee devices
+        # (lights use wall switches - bulb loses power, HA must detect offline. 60 s, not 15:
+        # at 15 s a brief radio hiccup marked a lit bulb unavailable and its return logged a
+        # phantom "Turned on the light" every ~15 min - CARYS-HOUSE bedroom, Oct 2026)
         # Gated: only rewrite core.config_entries when the value actually needs
         # changing, and only swap the file in if the result is valid non-empty JSON.
         # Rewriting this file under a live HA is a corruption risk — minimize it.
         ZHA_CONFIG="$CONFIG_DIR/.storage/core.config_entries"
         if [ -s "$ZHA_CONFIG" ] && command -v jq &>/dev/null; then
             current=$(jq '[.data.entries[] | select(.domain=="zha") | .options.custom_configuration.zha_options.consider_unavailable_mains] | first' "$ZHA_CONFIG" 2>/dev/null)
-            if [ "$current" != "15" ]; then
-                jq '(.data.entries[] | select(.domain=="zha") | .options.custom_configuration.zha_options.consider_unavailable_mains) = 15' \
+            if [ "$current" != "60" ]; then
+                jq '(.data.entries[] | select(.domain=="zha") | .options.custom_configuration.zha_options.consider_unavailable_mains) = 60' \
                     "$ZHA_CONFIG" > /tmp/zha_config_tmp \
                 && [ -s /tmp/zha_config_tmp ] \
                 && jq empty /tmp/zha_config_tmp 2>/dev/null \
