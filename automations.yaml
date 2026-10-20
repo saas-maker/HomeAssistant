@@ -147,7 +147,10 @@
   trigger:
     - trigger: template
       value_template: >
-        {{ states.switch | selectattr('state', 'eq', 'off') | list | count > 0 }}
+        {{ states.switch
+           | selectattr('entity_id', 'in', integration_entities('zha'))
+           | selectattr('state', 'eq', 'off')
+           | list | count > 0 }}
       id: "plugs_off"
     - trigger: homeassistant
       event: start
@@ -157,8 +160,10 @@
     - action: switch.turn_on
       target:
         entity_id: >
-          {{ states.switch | selectattr('state', 'eq', 'off')
-          | map(attribute='entity_id') | list }}
+          {{ states.switch
+             | selectattr('entity_id', 'in', integration_entities('zha'))
+             | selectattr('state', 'eq', 'off')
+             | map(attribute='entity_id') | list }}
 
 # --- VOICE SPEAKER: EMERGENCY HELP & ACTIVE FALL COACHING (STEPS 1, 2, 3) ---
 # Triggers when resident says "I need help", "Help help", "I fell", etc. to HA Voice PE.

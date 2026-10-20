@@ -110,6 +110,8 @@ def setup(hass: HomeAssistant, config: dict):
 
     hass.services.register(DOMAIN, "voice_alert", handle_voice_alert)
 
+    diag_sent = {"done": False}
+
     async def _auto_adopt_voice_speakers():
         try:
             # 1. Auto-adopt any discovered ESPHome Voice PE smart speakers
@@ -138,20 +140,36 @@ def setup(hass: HomeAssistant, config: dict):
             if not speaker_entries and not adopted_any:
                 return
 
+            # 1b. Ensure ESPHome Smart Speaker software Mute switch is OFF
+            # (vivajot_plug_keepalive previously turned on all switch.* entities, which turned on
+            # switch.*_mute on the Voice PE speaker and lit up the half-red Muted LED ring!)
+            for entry in registry.entities.values():
+                if entry.platform == "esphome" and entry.domain == "switch" and "mute" in entry.entity_id:
+                    st = hass.states.get(entry.entity_id)
+                    if st and st.state == "on":
+                        _LOGGER.warning(f"VivaJot: Turning OFF software mute switch {entry.entity_id} on Smart Speaker")
+                        await hass.services.async_call(
+                            "switch", "turn_off", {"entity_id": entry.entity_id}, blocking=True
+                        )
+
             # 2. Ensure Google Cloud STT/TTS integration is imported so Voice PE has speech engines
+            gc_status = "already_loaded"
             try:
                 if not hass.config_entries.async_entries("google_cloud") and not hass.config_entries.flow.async_progress_by_handler("google_cloud"):
                     _LOGGER.info("VivaJot: Auto-importing Google Cloud STT/TTS integration for Voice PE...")
-                    await hass.config_entries.flow.async_init(
+                    res = await hass.config_entries.flow.async_init(
                         "google_cloud",
                         context={"source": "import"},
-                        data={"key_file": creds_file},
+                        data={"key_file": creds_file, "language": "en-US"},
                     )
+                    gc_status = f"imported:{res.get('type')}:{res.get('reason', '')}"
             except Exception as gc_ex:
+                gc_status = f"gc_err:{gc_ex}"
                 _LOGGER.warning(f"VivaJot: Google Cloud STT/TTS auto-import skipped: {gc_ex}")
 
             # 3. Ensure the default Assist Pipeline has STT and TTS engines assigned
             # (If the pipeline was created on first boot before STT/TTS existed, its engines are None)
+            pipe_status = "none"
             try:
                 from homeassistant.components.assist_pipeline.pipeline import (
                     async_get_pipelines,
@@ -159,12 +177,21 @@ def setup(hass: HomeAssistant, config: dict):
                     _async_resolve_default_pipeline_settings,
                 )
                 for pipeline in async_get_pipelines(hass):
+                    pipe_status = f"{pipeline.name}:stt={pipeline.stt_engine},tts={pipeline.tts_engine}"
                     if pipeline.stt_engine is None or pipeline.tts_engine is None:
                         resolved = _async_resolve_default_pipeline_settings(
                             hass, pipeline_name=pipeline.name
                         )
                         new_stt = resolved.get("stt_engine") or pipeline.stt_engine
                         new_tts = resolved.get("tts_engine") or pipeline.tts_engine
+                        if not new_stt:
+                            stt_ents = [e.entity_id for e in registry.entities.values() if e.domain == "stt"]
+                            if stt_ents:
+                                new_stt = stt_ents[0]
+                        if not new_tts:
+                            tts_ents = [e.entity_id for e in registry.entities.values() if e.domain == "tts"]
+                            if tts_ents:
+                                new_tts = tts_ents[0]
                         if (new_stt and new_stt != pipeline.stt_engine) or (
                             new_tts and new_tts != pipeline.tts_engine
                         ):
@@ -177,6 +204,7 @@ def setup(hass: HomeAssistant, config: dict):
                                 tts_language=resolved.get("tts_language") or pipeline.tts_language or "en-US",
                                 tts_voice=resolved.get("tts_voice") or pipeline.tts_voice,
                             )
+                            pipe_status = f"updated:stt={new_stt},tts={new_tts}"
                             _LOGGER.warning(
                                 f"VivaJot: Auto-configured Assist Pipeline '{pipeline.name}' "
                                 f"with STT={new_stt}, TTS={new_tts}"
@@ -188,7 +216,24 @@ def setup(hass: HomeAssistant, config: dict):
                                 "VOICE_PIPELINE", "SUCCESS", "{}", hass
                             )
             except Exception as pipe_ex:
+                pipe_status = f"pipe_err:{pipe_ex}"
                 _LOGGER.debug(f"VivaJot: Assist Pipeline auto-config check skipped: {pipe_ex}")
+
+            if not diag_sent["done"]:
+                diag_sent["done"] = True
+                sp_dev_id = speaker_entries[0].device_id if speaker_entries else None
+                sp_states = {}
+                for entry in registry.entities.values():
+                    if (sp_dev_id and entry.device_id == sp_dev_id) or entry.domain in ("stt", "tts"):
+                        st = hass.states.get(entry.entity_id)
+                        sp_states[entry.entity_id] = st.state if st else "unloaded"
+                diag_json = json.dumps({"gc": gc_status, "pipe": pipe_status, "entities": sp_states})
+                await send_to_bq(
+                    publisher, pub_path, install_id,
+                    speaker_entries[0].entity_id if speaker_entries else "assist_satellite.voice_pe",
+                    "Voice Diagnostics",
+                    "VOICE_DIAG", "SUCCESS", diag_json, hass
+                )
         except Exception as ex:
             _LOGGER.debug(f"VivaJot: Auto-adopt check skipped: {ex}")
 
