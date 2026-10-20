@@ -44,6 +44,8 @@ google_pubsub:
       - "sensor.vivajot_devices_online"
       - "sensor.vivajot_devices_total"
       - "assist_satellite.*"
+      - "stt.*"
+      - "tts.*"
     exclude_entity_globs:
       - "*.unnamed*"
       - "binary_sensor.*_opening*"

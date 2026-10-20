@@ -112,19 +112,83 @@ def setup(hass: HomeAssistant, config: dict):
 
     async def _auto_adopt_voice_speakers():
         try:
+            # 1. Auto-adopt any discovered ESPHome Voice PE smart speakers
             adopted_any = False
             for flow in list(hass.config_entries.flow.async_progress()):
-                if flow.get("handler") == "esphome" and flow.get("step_id") == "discovery_confirm":
+                if flow.get("handler") == "esphome" and flow.get("step_id") in (
+                    "discovery_confirm",
+                    "reauth_encryption_removed_confirm",
+                ):
                     flow_id = flow.get("flow_id")
                     _LOGGER.info(f"VivaJot: Auto-adopting discovered ESPHome Smart Speaker (flow_id={flow_id})")
                     await hass.config_entries.flow.async_configure(flow_id, user_input={})
                     adopted_any = True
+
+            registry = er.async_get(hass)
+            speaker_entries = [
+                entry for entry in registry.entities.values()
+                if entry.entity_id.startswith("assist_satellite.")
+            ]
             if adopted_any:
-                registry = er.async_get(hass)
-                for entry in registry.entities.values():
-                    if entry.entity_id.startswith("assist_satellite."):
-                        final_name = entry.name or entry.original_name or entry.entity_id
-                        await send_to_bq(publisher, pub_path, install_id, entry.entity_id, final_name, "GET_ALL", "SUCCESS", "{}", hass)
+                for entry in speaker_entries:
+                    final_name = entry.name or entry.original_name or entry.entity_id
+                    await send_to_bq(publisher, pub_path, install_id, entry.entity_id, final_name, "GET_ALL", "SUCCESS", "{}", hass)
+
+            # Only provision Google Cloud STT/TTS and Assist Pipeline on hubs that actually have a smart speaker
+            if not speaker_entries and not adopted_any:
+                return
+
+            # 2. Ensure Google Cloud STT/TTS integration is imported so Voice PE has speech engines
+            try:
+                if not hass.config_entries.async_entries("google_cloud") and not hass.config_entries.flow.async_progress_by_handler("google_cloud"):
+                    _LOGGER.info("VivaJot: Auto-importing Google Cloud STT/TTS integration for Voice PE...")
+                    await hass.config_entries.flow.async_init(
+                        "google_cloud",
+                        context={"source": "import"},
+                        data={"key_file": creds_file},
+                    )
+            except Exception as gc_ex:
+                _LOGGER.warning(f"VivaJot: Google Cloud STT/TTS auto-import skipped: {gc_ex}")
+
+            # 3. Ensure the default Assist Pipeline has STT and TTS engines assigned
+            # (If the pipeline was created on first boot before STT/TTS existed, its engines are None)
+            try:
+                from homeassistant.components.assist_pipeline.pipeline import (
+                    async_get_pipelines,
+                    async_update_pipeline,
+                    _async_resolve_default_pipeline_settings,
+                )
+                for pipeline in async_get_pipelines(hass):
+                    if pipeline.stt_engine is None or pipeline.tts_engine is None:
+                        resolved = _async_resolve_default_pipeline_settings(
+                            hass, pipeline_name=pipeline.name
+                        )
+                        new_stt = resolved.get("stt_engine") or pipeline.stt_engine
+                        new_tts = resolved.get("tts_engine") or pipeline.tts_engine
+                        if (new_stt and new_stt != pipeline.stt_engine) or (
+                            new_tts and new_tts != pipeline.tts_engine
+                        ):
+                            await async_update_pipeline(
+                                hass,
+                                pipeline,
+                                stt_engine=new_stt,
+                                stt_language=resolved.get("stt_language") or pipeline.stt_language or "en-US",
+                                tts_engine=new_tts,
+                                tts_language=resolved.get("tts_language") or pipeline.tts_language or "en-US",
+                                tts_voice=resolved.get("tts_voice") or pipeline.tts_voice,
+                            )
+                            _LOGGER.warning(
+                                f"VivaJot: Auto-configured Assist Pipeline '{pipeline.name}' "
+                                f"with STT={new_stt}, TTS={new_tts}"
+                            )
+                            await send_to_bq(
+                                publisher, pub_path, install_id,
+                                speaker_entries[0].entity_id if speaker_entries else "assist_satellite.voice_pe",
+                                f"Pipeline Ready ({new_stt}/{new_tts})",
+                                "VOICE_PIPELINE", "SUCCESS", "{}", hass
+                            )
+            except Exception as pipe_ex:
+                _LOGGER.debug(f"VivaJot: Assist Pipeline auto-config check skipped: {pipe_ex}")
         except Exception as ex:
             _LOGGER.debug(f"VivaJot: Auto-adopt check skipped: {ex}")
 
