@@ -57,6 +57,87 @@ def setup(hass: HomeAssistant, config: dict):
                 time.sleep(10)
 
     threading.Thread(target=run_listener, daemon=True).start()
+
+    def handle_voice_alert(call):
+        intent = call.data.get("intent", "help")
+        details = call.data.get("details", "")
+        device_id = call.data.get("device_id", "")
+        target_install_id = install_id
+
+        # Support multi-apartment shared hubs: if speaker device/entity has @APT tag, append :APT
+        if device_id and ":" not in str(target_install_id):
+            try:
+                dev_reg = dr.async_get(hass)
+                dev = dev_reg.async_get(device_id)
+                dev_name = (dev.name_by_user or dev.name or "") if dev else ""
+                if "@" in dev_name:
+                    apt = dev_name.split("@")[-1].strip().split()[0].upper()
+                    if apt:
+                        target_install_id = f"{install_id}:{apt}"
+                else:
+                    ent_reg = er.async_get(hass)
+                    for entry in er.async_entries_for_device(ent_reg, device_id):
+                        ename = entry.name or entry.original_name or ""
+                        if "@" in ename:
+                            apt = ename.split("@")[-1].strip().split()[0].upper()
+                            if apt:
+                                target_install_id = f"{install_id}:{apt}"
+                                break
+            except Exception as ex:
+                _LOGGER.warning(f"VivaJot: Could not inspect device_id for apartment suffix: {ex}")
+
+        def _post_alert():
+            try:
+                url = "https://vivajot.saasmaker.com/Plugins/VivaJot/alexa_api.ashx?action=voice_alert"
+                payload = json.dumps({
+                    "install_id": target_install_id,
+                    "intent": intent,
+                    "details": details
+                }).encode("utf-8")
+                req = urllib.request.Request(
+                    url,
+                    data=payload,
+                    headers={"Content-Type": "application/json", "User-Agent": "VivaJot-HA-Hub/1.0"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    body = resp.read().decode("utf-8")
+                    _LOGGER.info(f"VivaJot Voice Alert ({intent}) sent for {target_install_id}: {body}")
+            except Exception as e:
+                _LOGGER.error(f"VivaJot Voice Alert failed for {target_install_id}: {e}")
+
+        threading.Thread(target=_post_alert, daemon=True).start()
+
+    hass.services.register(DOMAIN, "voice_alert", handle_voice_alert)
+
+    async def _auto_adopt_voice_speakers():
+        try:
+            adopted_any = False
+            for flow in list(hass.config_entries.flow.async_progress()):
+                if flow.get("handler") == "esphome" and flow.get("step_id") == "discovery_confirm":
+                    flow_id = flow.get("flow_id")
+                    _LOGGER.info(f"VivaJot: Auto-adopting discovered ESPHome Smart Speaker (flow_id={flow_id})")
+                    await hass.config_entries.flow.async_configure(flow_id, user_input={})
+                    adopted_any = True
+            if adopted_any:
+                registry = er.async_get(hass)
+                for entry in registry.entities.values():
+                    if entry.entity_id.startswith("assist_satellite."):
+                        final_name = entry.name or entry.original_name or entry.entity_id
+                        await send_to_bq(publisher, pub_path, install_id, entry.entity_id, final_name, "GET_ALL", "SUCCESS", "{}", hass)
+        except Exception as ex:
+            _LOGGER.debug(f"VivaJot: Auto-adopt check skipped: {ex}")
+
+    def run_speaker_adopter():
+        time.sleep(15)
+        while True:
+            try:
+                hass.add_job(_auto_adopt_voice_speakers)
+            except Exception:
+                pass
+            time.sleep(25)
+
+    threading.Thread(target=run_speaker_adopter, daemon=True).start()
     return True
 
 async def process_command(hass, data, pub, path, req, inst):
@@ -167,14 +248,14 @@ async def process_command(hass, data, pub, path, req, inst):
     
     registry = er.async_get(hass)
     
-    # 1. ZIGBEE SCAN
+    # 1. ZIGBEE & SMART SPEAKER SCAN
     if not eid:
-        _LOGGER.info("VivaJot: Scanning Zigbee Hardware...")
+        _LOGGER.info("VivaJot: Scanning Zigbee & Smart Speaker Hardware...")
         globs = hass.data.get(DOMAIN, {})
         includes = globs.get("includes", [])
         excludes = globs.get("excludes", [])
         for entry in registry.entities.values():
-            if entry.platform == 'zha':
+            if entry.platform in ('zha', 'esphome') or entry.entity_id.startswith('assist_satellite.'):
                 if includes and not any(fnmatch.fnmatch(entry.entity_id, g) for g in includes):
                     continue
                 if excludes and any(fnmatch.fnmatch(entry.entity_id, g) for g in excludes):
