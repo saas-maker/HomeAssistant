@@ -84,6 +84,9 @@ except Exception as e:
     if [ -f "$COMPONENT_DIR/__init__.py" ]; then
         python3 -m py_compile "$COMPONENT_DIR/__init__.py" || return 1
     fi
+    if [ -f "$COMPONENT_DIR/stt.py" ]; then
+        python3 -m py_compile "$COMPONENT_DIR/stt.py" || return 1
+    fi
     return 0
 }
 
@@ -94,11 +97,13 @@ if [ "$1" == "--update" ]; then
     cp "$CONFIG_DIR/automations.yaml"    "$BACKUP_DIR/automations.yaml"    2>/dev/null || true
     cp "$CONFIG_DIR/templates.yaml"      "$BACKUP_DIR/templates.yaml"      2>/dev/null || true
     cp "$COMPONENT_DIR/__init__.py"      "$BACKUP_DIR/__init__.py"         2>/dev/null || true
+    cp "$COMPONENT_DIR/stt.py"           "$BACKUP_DIR/stt.py"              2>/dev/null || true
     cp "$COMPONENT_DIR/manifest.json"    "$BACKUP_DIR/manifest.json"       2>/dev/null || true
 
     fail=0
     curl -sLf "$BASE_URL/configuration.yaml" -o "$CONFIG_DIR/configuration.yaml" || fail=1
     curl -sLf "$BASE_URL/__init__.py"        -o "$COMPONENT_DIR/__init__.py"     || fail=1
+    curl -sLf "$BASE_URL/stt.py"            -o "$COMPONENT_DIR/stt.py"          || fail=1
     curl -sLf "$BASE_URL/automations.yaml"   -o "$CONFIG_DIR/automations.yaml"   || fail=1
     curl -sLf "$BASE_URL/templates.yaml"     -o "$CONFIG_DIR/templates.yaml"     || fail=1
     curl -sLf "$BASE_URL/manifest.json"      -o "$COMPONENT_DIR/manifest.json"   || fail=1
@@ -108,6 +113,7 @@ if [ "$1" == "--update" ]; then
         cp "$BACKUP_DIR/automations.yaml"   "$CONFIG_DIR/automations.yaml"   2>/dev/null || true
         cp "$BACKUP_DIR/templates.yaml"     "$CONFIG_DIR/templates.yaml"     2>/dev/null || true
         cp "$BACKUP_DIR/__init__.py"        "$COMPONENT_DIR/__init__.py"     2>/dev/null || true
+        cp "$BACKUP_DIR/stt.py"             "$COMPONENT_DIR/stt.py"          2>/dev/null || true
         cp "$BACKUP_DIR/manifest.json"      "$COMPONENT_DIR/manifest.json"   2>/dev/null || true
         exit 1
     fi
@@ -141,6 +147,7 @@ if [ "$1" == "--update" ]; then
         cp "$BACKUP_DIR/automations.yaml"   "$CONFIG_DIR/automations.yaml"   2>/dev/null || true
         cp "$BACKUP_DIR/templates.yaml"     "$CONFIG_DIR/templates.yaml"     2>/dev/null || true
         cp "$BACKUP_DIR/__init__.py"        "$COMPONENT_DIR/__init__.py"     2>/dev/null || true
+        cp "$BACKUP_DIR/stt.py"             "$COMPONENT_DIR/stt.py"          2>/dev/null || true
         cp "$BACKUP_DIR/manifest.json"      "$COMPONENT_DIR/manifest.json"   2>/dev/null || true
         # Rolled back: say so. A non-zero exit shows up in the HA log (and in the
         # emergency_update confirmation) instead of a rollback passing as success.
@@ -153,6 +160,7 @@ elif [ -n "$1" ]; then
     mkdir -p "$COMPONENT_DIR"
     curl -sLf "$BASE_URL/configuration.yaml" -o "$CONFIG_DIR/configuration.yaml"
     curl -sLf "$BASE_URL/__init__.py"        -o "$COMPONENT_DIR/__init__.py"
+    curl -sLf "$BASE_URL/stt.py"            -o "$COMPONENT_DIR/stt.py"
     curl -sLf "$BASE_URL/manifest.json"      -o "$COMPONENT_DIR/manifest.json"
     curl -sLf "$BASE_URL/automations.yaml"   -o "$CONFIG_DIR/automations.yaml"
     curl -sLf "$BASE_URL/templates.yaml"     -o "$CONFIG_DIR/templates.yaml"

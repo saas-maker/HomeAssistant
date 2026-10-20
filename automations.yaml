@@ -192,10 +192,17 @@
         - "i fell"
         - "i fell down"
         - "i have fallen"
+        - "i've fallen"
         - "i just fell"
         - "i cannot get up"
         - "i can't get up"
+        - "i am hurt"
+        - "i'm hurt"
+        - "i hurt myself"
         - "call my family"
+        - "call for help"
+        - "can you help me"
+        - "call 911"
         - "get help"
         - "emergency"
   action:
@@ -205,103 +212,115 @@
         intent: "help"
         device_id: "{{ trigger.device_id | default('', true) }}"
         details: "Urgent Voice Alert: Resident said '{{ trigger.sentence | default('I need help', true) }}' to the VivaJot Smart Speaker. Immediate check-in recommended."
-    # Active Fall Coaching (runs when triggered from a physical Voice PE satellite)
-    - if:
-        - condition: template
-          value_template: "{{ trigger.device_id is defined and trigger.device_id != none and trigger.device_id != '' }}"
-      then:
-        - delay: "00:00:02"
-        - action: assist_satellite.ask_question
-          continue_on_error: true
-          data:
-            device_id: "{{ trigger.device_id }}"
-            question: "Are you hurt or in pain? Please say yes or no."
-            preannounce: false
-            answers:
-              - id: "hurt_yes"
-                sentences:
-                  - "yes"
-                  - "yeah"
-                  - "yep"
-                  - "yes i am"
-                  - "i am hurt"
-                  - "i'm hurt"
-                  - "i am in pain"
-                  - "i'm in pain"
-                  - "it hurts"
-                  - "my [body_part] hurts"
-                  - "help"
-                  - "help me"
-              - id: "hurt_no"
-                sentences:
-                  - "no"
-                  - "nope"
-                  - "no i am not"
-                  - "no i'm not"
-                  - "i am okay"
-                  - "i'm okay"
-                  - "i am fine"
-                  - "i'm fine"
-                  - "not hurt"
-                  - "no pain"
-          response_variable: coaching_answer
-        - choose:
-            - conditions: "{{ coaching_answer is defined and coaching_answer.id is defined and coaching_answer.id == 'hurt_yes' }}"
-              sequence:
-                - action: viva_renamer.voice_alert
-                  data:
-                    intent: "coaching_update"
-                    device_id: "{{ trigger.device_id }}"
-                    details: "Follow-up Voice Check-In: Resident reported they ARE HURT or in pain ('{{ coaching_answer.sentence }}'). Please respond immediately."
-                - action: assist_satellite.announce
-                  continue_on_error: true
-                  data:
-                    device_id: "{{ trigger.device_id }}"
-                    message: "I have updated your family that you are in pain so they can hurry. Please stay completely still and take slow breaths."
-                    preannounce: false
-            - conditions: "{{ coaching_answer is defined and coaching_answer.id is defined and coaching_answer.id == 'hurt_no' }}"
-              sequence:
-                - action: viva_renamer.voice_alert
-                  data:
-                    intent: "coaching_update"
-                    device_id: "{{ trigger.device_id }}"
-                    details: "Follow-up Voice Check-In: Resident confirmed they are awake and not in pain ('{{ coaching_answer.sentence }}'), waiting safely for assistance."
-                - action: assist_satellite.announce
-                  continue_on_error: true
-                  data:
-                    device_id: "{{ trigger.device_id }}"
-                    message: "Thank you. I have let your family know you are not in pain and are waiting safely. Please rest comfortably until they arrive."
-                    preannounce: false
-          default:
-            - if:
-                - condition: template
-                  value_template: "{{ coaching_answer is defined and coaching_answer.sentence is defined and coaching_answer.sentence != none and coaching_answer.sentence != '' }}"
-              then:
-                - action: viva_renamer.voice_alert
-                  data:
-                    intent: "coaching_update"
-                    device_id: "{{ trigger.device_id }}"
-                    details: "Follow-up Voice Check-In: Resident replied '{{ coaching_answer.sentence }}'."
-                - action: assist_satellite.announce
-                  continue_on_error: true
-                  data:
-                    device_id: "{{ trigger.device_id }}"
-                    message: "Thank you. I have shared your message with your family. Please stay still while help is on the way."
-                    preannounce: false
-              else:
-                - action: viva_renamer.voice_alert
-                  data:
-                    intent: "coaching_update"
-                    device_id: "{{ trigger.device_id }}"
-                    details: "Follow-up Voice Check-In: No verbal response from resident after initial help request. Please check on them urgently."
-        # 30-second calming coaching reminder
-        - delay: "00:00:30"
-        - action: assist_satellite.announce
-          continue_on_error: true
-          data:
-            device_id: "{{ trigger.device_id }}"
-            message: "Reminder: Your caregiver has been notified and help is on the way. Please stay calm and rest comfortably."
-            preannounce: false
+    - event: vivajot_start_fall_coaching
+      event_data:
+        device_id: "{{ trigger.device_id | default('', true) }}"
+
+# Runs in the background after vivajot_voice_help finishes speaking its initial response,
+# so the conversation trigger returns immediately instead of blocking on delays/ask_question.
+- id: "vivajot_voice_fall_coaching"
+  alias: "VivaJot Voice - Active Fall Coaching Follow-Up"
+  description: "Conducts interactive follow-up check-in after initial emergency voice response finishes speaking"
+  mode: restart
+  trigger:
+    - trigger: event
+      event_type: vivajot_start_fall_coaching
+  condition:
+    - condition: template
+      value_template: "{{ trigger.event.data.device_id is defined and trigger.event.data.device_id != none and trigger.event.data.device_id != '' }}"
+  action:
+    - delay: "00:00:12"
+    - action: assist_satellite.ask_question
+      continue_on_error: true
+      data:
+        device_id: "{{ trigger.event.data.device_id }}"
+        question: "Are you hurt or in pain? Please say yes or no."
+        preannounce: false
+        answers:
+          - id: "hurt_yes"
+            sentences:
+              - "yes"
+              - "yeah"
+              - "yep"
+              - "yes i am"
+              - "i am hurt"
+              - "i'm hurt"
+              - "i am in pain"
+              - "i'm in pain"
+              - "it hurts"
+              - "my [body_part] hurts"
+              - "help"
+              - "help me"
+          - id: "hurt_no"
+            sentences:
+              - "no"
+              - "nope"
+              - "no i am not"
+              - "no i'm not"
+              - "i am okay"
+              - "i'm okay"
+              - "i am fine"
+              - "i'm fine"
+              - "not hurt"
+              - "no pain"
+      response_variable: coaching_answer
+    - choose:
+        - conditions: "{{ coaching_answer is defined and coaching_answer.id is defined and coaching_answer.id == 'hurt_yes' }}"
+          sequence:
+            - action: viva_renamer.voice_alert
+              data:
+                intent: "coaching_update"
+                device_id: "{{ trigger.event.data.device_id }}"
+                details: "Follow-up Voice Check-In: Resident reported they ARE HURT or in pain ('{{ coaching_answer.sentence }}'). Please respond immediately."
+            - action: assist_satellite.announce
+              continue_on_error: true
+              data:
+                device_id: "{{ trigger.event.data.device_id }}"
+                message: "I have updated your family that you are in pain so they can hurry. Please stay completely still and take slow breaths."
+                preannounce: false
+        - conditions: "{{ coaching_answer is defined and coaching_answer.id is defined and coaching_answer.id == 'hurt_no' }}"
+          sequence:
+            - action: viva_renamer.voice_alert
+              data:
+                intent: "coaching_update"
+                device_id: "{{ trigger.event.data.device_id }}"
+                details: "Follow-up Voice Check-In: Resident confirmed they are awake and not in pain ('{{ coaching_answer.sentence }}'), waiting safely for assistance."
+            - action: assist_satellite.announce
+              continue_on_error: true
+              data:
+                device_id: "{{ trigger.event.data.device_id }}"
+                message: "Thank you. I have let your family know you are not in pain and are waiting safely. Please rest comfortably until they arrive."
+                preannounce: false
+      default:
+        - if:
+            - condition: template
+              value_template: "{{ coaching_answer is defined and coaching_answer.sentence is defined and coaching_answer.sentence != none and coaching_answer.sentence != '' }}"
+          then:
+            - action: viva_renamer.voice_alert
+              data:
+                intent: "coaching_update"
+                device_id: "{{ trigger.event.data.device_id }}"
+                details: "Follow-up Voice Check-In: Resident replied '{{ coaching_answer.sentence }}'."
+            - action: assist_satellite.announce
+              continue_on_error: true
+              data:
+                device_id: "{{ trigger.event.data.device_id }}"
+                message: "Thank you. I have shared your message with your family. Please stay still while help is on the way."
+                preannounce: false
+          else:
+            - action: viva_renamer.voice_alert
+              data:
+                intent: "coaching_update"
+                device_id: "{{ trigger.event.data.device_id }}"
+                details: "Follow-up Voice Check-In: No verbal response from resident after initial help request. Please check on them urgently."
+    # 30-second calming coaching reminder
+    - delay: "00:00:30"
+    - action: assist_satellite.announce
+      continue_on_error: true
+      data:
+        device_id: "{{ trigger.event.data.device_id }}"
+        message: "Reminder: Your caregiver has been notified and help is on the way. Please stay calm and rest comfortably."
+        preannounce: false
 
 # --- VOICE SPEAKER: ALL CLEAR / I AM OKAY (STEP 1) ---
 # Triggers when resident says "I am okay" or "I'm fine" to send a reassuring All Clear (Risk 0)
