@@ -225,15 +225,21 @@
   trigger:
     - trigger: event
       event_type: vivajot_start_fall_coaching
+  variables:
+    sat_entity: >
+      {% set dev = trigger.event.data.device_id | default('', true) %}
+      {% set dev_sats = device_entities(dev) | select('match', '^assist_satellite\.') | list if dev else [] %}
+      {{ dev_sats[0] if dev_sats | count > 0 else (states.assist_satellite | map(attribute='entity_id') | first | default('', true)) }}
   condition:
     - condition: template
-      value_template: "{{ trigger.event.data.device_id is defined and trigger.event.data.device_id != none and trigger.event.data.device_id != '' }}"
+      value_template: "{{ sat_entity != '' }}"
   action:
     - delay: "00:00:12"
     - action: assist_satellite.ask_question
       continue_on_error: true
+      target:
+        entity_id: "{{ sat_entity }}"
       data:
-        device_id: "{{ trigger.event.data.device_id }}"
         question: "Are you hurt or in pain? Please say yes or no."
         preannounce: false
         answers:
@@ -270,12 +276,13 @@
             - action: viva_renamer.voice_alert
               data:
                 intent: "coaching_update"
-                device_id: "{{ trigger.event.data.device_id }}"
+                device_id: "{{ trigger.event.data.device_id | default('', true) }}"
                 details: "Follow-up Voice Check-In: Resident reported they ARE HURT or in pain ('{{ coaching_answer.sentence }}'). Please respond immediately."
             - action: assist_satellite.announce
               continue_on_error: true
+              target:
+                entity_id: "{{ sat_entity }}"
               data:
-                device_id: "{{ trigger.event.data.device_id }}"
                 message: "I have updated your family that you are in pain so they can hurry. Please stay completely still and take slow breaths."
                 preannounce: false
         - conditions: "{{ coaching_answer is defined and coaching_answer.id is defined and coaching_answer.id == 'hurt_no' }}"
@@ -283,12 +290,13 @@
             - action: viva_renamer.voice_alert
               data:
                 intent: "coaching_update"
-                device_id: "{{ trigger.event.data.device_id }}"
+                device_id: "{{ trigger.event.data.device_id | default('', true) }}"
                 details: "Follow-up Voice Check-In: Resident confirmed they are awake and not in pain ('{{ coaching_answer.sentence }}'), waiting safely for assistance."
             - action: assist_satellite.announce
               continue_on_error: true
+              target:
+                entity_id: "{{ sat_entity }}"
               data:
-                device_id: "{{ trigger.event.data.device_id }}"
                 message: "Thank you. I have let your family know you are not in pain and are waiting safely. Please rest comfortably until they arrive."
                 preannounce: false
       default:
@@ -299,26 +307,28 @@
             - action: viva_renamer.voice_alert
               data:
                 intent: "coaching_update"
-                device_id: "{{ trigger.event.data.device_id }}"
+                device_id: "{{ trigger.event.data.device_id | default('', true) }}"
                 details: "Follow-up Voice Check-In: Resident replied '{{ coaching_answer.sentence }}'."
             - action: assist_satellite.announce
               continue_on_error: true
+              target:
+                entity_id: "{{ sat_entity }}"
               data:
-                device_id: "{{ trigger.event.data.device_id }}"
                 message: "Thank you. I have shared your message with your family. Please stay still while help is on the way."
                 preannounce: false
           else:
             - action: viva_renamer.voice_alert
               data:
                 intent: "coaching_update"
-                device_id: "{{ trigger.event.data.device_id }}"
+                device_id: "{{ trigger.event.data.device_id | default('', true) }}"
                 details: "Follow-up Voice Check-In: No verbal response from resident after initial help request. Please check on them urgently."
     # 30-second calming coaching reminder
     - delay: "00:00:30"
     - action: assist_satellite.announce
       continue_on_error: true
+      target:
+        entity_id: "{{ sat_entity }}"
       data:
-        device_id: "{{ trigger.event.data.device_id }}"
         message: "Reminder: Your caregiver has been notified and help is on the way. Please stay calm and rest comfortably."
         preannounce: false
 

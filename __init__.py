@@ -65,24 +65,33 @@ def setup(hass: HomeAssistant, config: dict):
         target_install_id = install_id
 
         # Support multi-apartment shared hubs: if speaker device/entity has @APT tag, append :APT
-        if device_id and ":" not in str(target_install_id):
+        if ":" not in str(target_install_id):
             try:
                 dev_reg = dr.async_get(hass)
-                dev = dev_reg.async_get(device_id)
-                dev_name = (dev.name_by_user or dev.name or "") if dev else ""
-                if "@" in dev_name:
-                    apt = dev_name.split("@")[-1].strip().split()[0].upper()
-                    if apt:
-                        target_install_id = f"{install_id}:{apt}"
-                else:
-                    ent_reg = er.async_get(hass)
-                    for entry in er.async_entries_for_device(ent_reg, device_id):
-                        ename = entry.name or entry.original_name or ""
-                        if "@" in ename:
-                            apt = ename.split("@")[-1].strip().split()[0].upper()
-                            if apt:
-                                target_install_id = f"{install_id}:{apt}"
-                                break
+                ent_reg = er.async_get(hass)
+                check_dev_id = device_id
+                if not check_dev_id:
+                    sats = [
+                        e for e in ent_reg.entities.values()
+                        if e.domain == "assist_satellite" and e.device_id
+                    ]
+                    if len(sats) == 1:
+                        check_dev_id = sats[0].device_id
+                if check_dev_id:
+                    dev = dev_reg.async_get(check_dev_id)
+                    dev_name = (dev.name_by_user or dev.name or "") if dev else ""
+                    if "@" in dev_name:
+                        apt = dev_name.split("@")[-1].strip().split()[0].upper()
+                        if apt:
+                            target_install_id = f"{target_install_id}:{apt}"
+                    else:
+                        for entry in er.async_entries_for_device(ent_reg, check_dev_id):
+                            ename = entry.name or entry.original_name or ""
+                            if "@" in ename:
+                                apt = ename.split("@")[-1].strip().split()[0].upper()
+                                if apt:
+                                    target_install_id = f"{target_install_id}:{apt}"
+                                    break
             except Exception as ex:
                 _LOGGER.warning(f"VivaJot: Could not inspect device_id for apartment suffix: {ex}")
 
@@ -92,17 +101,21 @@ def setup(hass: HomeAssistant, config: dict):
                 payload = json.dumps({
                     "install_id": target_install_id,
                     "intent": intent,
-                    "details": details
+                    "details": details,
                 }).encode("utf-8")
                 req = urllib.request.Request(
                     url,
                     data=payload,
-                    headers={"Content-Type": "application/json", "User-Agent": "VivaJot-HA-Hub/1.0"},
-                    method="POST"
+                    headers={
+                        "Content-Type": "application/json",
+                        "User-Agent": "VivaJot-HA-Hub/1.0",
+                    },
+                    method="POST",
                 )
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     body = resp.read().decode("utf-8")
-                    _LOGGER.info(f"VivaJot Voice Alert ({intent}) sent for {target_install_id}: {body}")
+                    _LOGGER.warning(f"VivaJot Voice Alert sent ({intent}) for {target_install_id}: {body}")
+
                 confirm = {
                     "inst_id": target_install_id,
                     "entity_id": "viva_renamer.voice_alert",
@@ -115,10 +128,23 @@ def setup(hass: HomeAssistant, config: dict):
                 publisher.publish(pub_path, json.dumps(confirm).encode("utf-8"))
             except Exception as e:
                 _LOGGER.error(f"VivaJot Voice Alert failed for {target_install_id}: {e}")
+                try:
+                    err_confirm = {
+                        "inst_id": target_install_id,
+                        "entity_id": "viva_renamer.voice_alert",
+                        "action_type": "VOICE_ALERT",
+                        "friendly_name": f"AlertErr:{intent}",
+                        "location_name": "VoicePE",
+                        "status": "ERROR",
+                        "action_request": str(e)[:200],
+                    }
+                    publisher.publish(pub_path, json.dumps(err_confirm).encode("utf-8"))
+                except Exception:
+                    pass
 
-        threading.Thread(target=_post_alert, daemon=True).start()
+        await hass.async_add_executor_job(_post_alert)
 
-    hass.services.register(DOMAIN, "voice_alert", handle_voice_alert)
+    hass.add_job(hass.services.async_register, DOMAIN, "voice_alert", handle_voice_alert)
 
     diag_sent = {"done": False}
 
