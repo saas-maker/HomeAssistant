@@ -208,15 +208,20 @@ def setup(hass: HomeAssistant, config: dict):
                         if stt_ents:
                             desired_stt = stt_ents[0]
 
-                    # Target TTS engine
+                    # Target TTS engine & matching language code
+                    # (tts.google_translate_en_com requires 'en' or lowercase 'en-us'; uppercase 'en-US' fails pipeline validation!)
                     desired_tts = pipeline.tts_engine
                     if not desired_tts or desired_tts == "none" or not (hass.states.get(desired_tts) or any(e.entity_id == desired_tts for e in registry.entities.values())):
                         tts_ents = [e.entity_id for e in registry.entities.values() if e.domain == "tts"]
                         if tts_ents:
                             desired_tts = next((t for t in tts_ents if "google" in t), tts_ents[0])
 
-                    if (desired_stt and pipeline.stt_engine != desired_stt) or (
-                        desired_tts and pipeline.tts_engine != desired_tts
+                    desired_tts_lang = "en" if (desired_tts and "translate" in desired_tts) else "en-US"
+
+                    if (
+                        (desired_stt and pipeline.stt_engine != desired_stt)
+                        or (desired_tts and pipeline.tts_engine != desired_tts)
+                        or (pipeline.tts_language != desired_tts_lang)
                     ):
                         await async_update_pipeline(
                             hass,
@@ -224,7 +229,7 @@ def setup(hass: HomeAssistant, config: dict):
                             stt_engine=desired_stt,
                             stt_language="en-US",
                             tts_engine=desired_tts,
-                            tts_language="en-US",
+                            tts_language=desired_tts_lang,
                             tts_voice=pipeline.tts_voice,
                         )
                         pipe_status = f"updated:stt={desired_stt},tts={desired_tts}"

@@ -80,7 +80,7 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
     @property
     def supported_languages(self) -> list[str]:
         """Return list of supported languages."""
-        return ["en", "en-US", "en-GB", "en-CA", "en-AU"]
+        return ["en", "en-US", "en-us", "en-GB", "en-gb", "en-CA", "en-ca", "en-AU", "en-au"]
 
     @property
     def supported_formats(self) -> list[stt.AudioFormats]:
