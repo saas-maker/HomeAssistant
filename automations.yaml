@@ -211,7 +211,7 @@
       data:
         intent: "help"
         device_id: "{{ trigger.device_id | default('', true) }}"
-        details: "Urgent Voice Alert: Resident said '{{ trigger.sentence | default('I need help', true) }}' to the VivaJot Smart Speaker. Immediate check-in recommended."
+        details: "Urgent Voice Alert: Resident said {{ trigger.sentence | default('I need help', true) }} to the VivaJot Smart Speaker. Immediate check-in recommended."
     - event: vivajot_start_fall_coaching
       event_data:
         device_id: "{{ trigger.device_id | default('', true) }}"
@@ -277,7 +277,7 @@
               data:
                 intent: "coaching_update"
                 device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "Follow-up Voice Check-In: Resident reported they ARE HURT or in pain ('{{ coaching_answer.sentence }}'). Please respond immediately."
+                details: "Follow-up Voice Check-In: Resident reported they ARE HURT or in pain ({{ coaching_answer.sentence }}). Please respond immediately."
             - action: assist_satellite.announce
               continue_on_error: true
               target:
@@ -291,7 +291,7 @@
               data:
                 intent: "coaching_update"
                 device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "Follow-up Voice Check-In: Resident confirmed they are awake and not in pain ('{{ coaching_answer.sentence }}'), waiting safely for assistance."
+                details: "Follow-up Voice Check-In: Resident confirmed they are awake and not in pain ({{ coaching_answer.sentence }}), waiting safely for assistance."
             - action: assist_satellite.announce
               continue_on_error: true
               target:
@@ -308,7 +308,7 @@
               data:
                 intent: "coaching_update"
                 device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "Follow-up Voice Check-In: Resident replied '{{ coaching_answer.sentence }}'."
+                details: "Follow-up Voice Check-In: Resident replied {{ coaching_answer.sentence }}."
             - action: assist_satellite.announce
               continue_on_error: true
               target:

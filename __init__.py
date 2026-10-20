@@ -98,10 +98,11 @@ def setup(hass: HomeAssistant, config: dict):
         def _post_alert():
             try:
                 url = "https://vivajot.saasmaker.com/Plugins/VivaJot/alexa_api.ashx?action=voice_alert"
+                clean_details = (details or "").replace("'", "").replace('"', "").replace("\\", "")
                 payload = json.dumps({
                     "install_id": target_install_id,
                     "intent": intent,
-                    "details": details,
+                    "details": clean_details,
                 }).encode("utf-8")
                 req = urllib.request.Request(
                     url,
