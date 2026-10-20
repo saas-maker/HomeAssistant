@@ -97,51 +97,19 @@ def setup(hass: HomeAssistant, config: dict):
 
         def _post_alert():
             try:
-                url = "https://vivajot.saasmaker.com/Plugins/VivaJot/alexa_api.ashx?action=voice_alert"
-                clean_details = (details or "").replace("'", "").replace('"', "").replace("\\", "")
-                payload = json.dumps({
-                    "install_id": target_install_id,
-                    "intent": intent,
-                    "details": clean_details,
-                }).encode("utf-8")
-                req = urllib.request.Request(
-                    url,
-                    data=payload,
-                    headers={
-                        "Content-Type": "application/json",
-                        "User-Agent": "VivaJot-HA-Hub/1.0",
-                    },
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    body = resp.read().decode("utf-8")
-                    _LOGGER.warning(f"VivaJot Voice Alert sent ({intent}) for {target_install_id}: {body}")
-
                 confirm = {
                     "inst_id": target_install_id,
                     "entity_id": "viva_renamer.voice_alert",
                     "action_type": "VOICE_ALERT",
                     "friendly_name": f"Alert:{intent}",
                     "location_name": "VoicePE",
-                    "status": "SUCCESS",
-                    "action_request": details[:200],
+                    "status": "TRIGGER",
+                    "action_request": (details or "")[:200],
                 }
                 publisher.publish(pub_path, json.dumps(confirm).encode("utf-8"))
+                _LOGGER.warning(f"VivaJot Voice Alert published to Pub/Sub ({intent}) for {target_install_id}")
             except Exception as e:
-                _LOGGER.error(f"VivaJot Voice Alert failed for {target_install_id}: {e}")
-                try:
-                    err_confirm = {
-                        "inst_id": target_install_id,
-                        "entity_id": "viva_renamer.voice_alert",
-                        "action_type": "VOICE_ALERT",
-                        "friendly_name": f"AlertErr:{intent}",
-                        "location_name": "VoicePE",
-                        "status": "ERROR",
-                        "action_request": str(e)[:200],
-                    }
-                    publisher.publish(pub_path, json.dumps(err_confirm).encode("utf-8"))
-                except Exception:
-                    pass
+                _LOGGER.error(f"VivaJot Voice Alert Pub/Sub publish failed for {target_install_id}: {e}")
 
         await hass.async_add_executor_job(_post_alert)
 
