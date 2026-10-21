@@ -1,2 +1,4 @@
-# Hubs run Linux — everything this repo ships must have LF line endings.
-* text eol=lf
+*.bin binary
+*.tflite binary
+*.wav binary
+*.zip binary
