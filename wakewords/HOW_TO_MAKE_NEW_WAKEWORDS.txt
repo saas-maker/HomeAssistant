@@ -1,0 +1,48 @@
+HOW TO MAKE A NEW WAKE WORD  (about 45 minutes, free)
+=====================================================
+
+You need: a Google account and the notebook file in this folder
+(custom_microwakeword_training.ipynb).
+
+1. Go to https://colab.research.google.com and sign in.
+   File -> Upload notebook -> pick custom_microwakeword_training.ipynb.
+   (Or open it straight from GitHub: pafernanr/custom-microwakeword-training-colab)
+
+2. Runtime -> Change runtime type -> T4 GPU -> Save.  (Free. Do NOT pick
+   the paid GPUs.)
+
+3. In Cell 1, edit the CONFIG:
+      WAKE_WORD_NAME   = short name, e.g. 'vivajot_lights'
+      CLIP_DURATION_MS = 1500 for one word, 1800 for two or more
+      TEST_VARIANTS    = a few phonetic spellings to try,
+                         e.g. ['vivajot lights', 'veeva jaht lights']
+      LANGUAGE         = 'en_US'
+
+4. Run Cell 1, then Cell 2.  When Cell 2 says RESTART REQUIRED:
+   Runtime -> Restart session.  Then run Cell 1 again, SKIP Cell 2,
+   and run Cells 3, 4, 5.
+
+5. Cell 5 plays one audio clip per spelling.  Listen and note the
+   number (#0, #1, ...) that sounds right.
+
+6. Run Cell 5b, type that number in the box, press Enter.
+
+7. Run the remaining cells in order (6 through 11).  Cell 11 is the
+   training and takes about 20 minutes.
+
+8. Run Cell 12 - it downloads the .tflite model file.
+
+9. Put the .tflite in this folder, copy vivajot_help.json to
+   <newname>.json, and edit the "wake_word" and "model" lines in it.
+
+10. Add the new model to the speaker firmware: in
+    esphome-build/voice-pe/home-assistant-voice.yaml find
+    "micro_wake_word:" -> "models:" and add two lines like:
+        - model: <newname>.json
+          id: <newname>
+    Copy the .json and .tflite next to that yaml, recompile, reflash
+    (see README.md in this folder).
+
+Tip: if the finished wake word misses real voices, lower
+probability_cutoff in the .json (0.7).  If it false-triggers, raise
+it (0.9).  Changing it requires a reflash.
