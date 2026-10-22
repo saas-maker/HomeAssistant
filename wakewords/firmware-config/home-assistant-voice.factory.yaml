@@ -16,7 +16,7 @@ packages:
 esphome:
   project:
     name: SaaS Factory.VivaJot Voice PE
-    version: "26.10.22.2"
+    version: "26.10.22.3"
 
 ota:
   - platform: http_request
