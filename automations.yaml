@@ -407,9 +407,9 @@
           sequence:
             - action: viva_renamer.voice_alert
               data:
-                intent: "coaching_update"
+                intent: "help"
                 device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "Follow-up Voice Check-In: Resident reported they ARE HURT or in pain ({{ coaching_answer.sentence }}). Please respond immediately."
+                details: "Help follow-up: Resident reported they ARE HURT or in pain ({{ coaching_answer.sentence }}). Please respond immediately."
             - action: assist_satellite.announce
               continue_on_error: true
               target:
@@ -421,9 +421,9 @@
           sequence:
             - action: viva_renamer.voice_alert
               data:
-                intent: "coaching_update"
+                intent: "help"
                 device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "Follow-up Voice Check-In: Resident confirmed they are awake and not in pain ({{ coaching_answer.sentence }}), waiting safely for assistance."
+                details: "Help follow-up: Resident confirmed they are awake and not in pain ({{ coaching_answer.sentence }}), waiting safely for assistance."
             - action: assist_satellite.announce
               continue_on_error: true
               target:
@@ -438,9 +438,9 @@
           then:
             - action: viva_renamer.voice_alert
               data:
-                intent: "coaching_update"
+                intent: "help"
                 device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "Follow-up Voice Check-In: Resident replied {{ coaching_answer.sentence }}."
+                details: "Help follow-up: Resident replied {{ coaching_answer.sentence }}."
             - action: assist_satellite.announce
               continue_on_error: true
               target:
@@ -451,9 +451,9 @@
           else:
             - action: viva_renamer.voice_alert
               data:
-                intent: "coaching_update"
+                intent: "help"
                 device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "Follow-up Voice Check-In: No verbal response from resident after initial help request. Please check on them urgently."
+                details: "Help follow-up: No verbal response from resident after initial help request. Please check on them urgently."
     # 30-second calming coaching reminder
     - delay: "00:00:30"
     - action: assist_satellite.announce
