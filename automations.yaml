@@ -206,28 +206,110 @@
         - "get help"
         - "emergency"
   action:
-    - set_conversation_response: "Help is on the way. I have notified your family and caregiver right now. Please stay still and do not try to stand up."
-    # Alert only once per cooldown window; the wake-word automation below may
-    # already have alerted for this incident.
-    - if:
-        - condition: state
-          entity_id: timer.vivajot_alert_cooldown
-          state: idle
-      then:
-        - action: timer.start
-          target:
-            entity_id: timer.vivajot_alert_cooldown
+    # No alert yet: confirm first (resident's explicit request, 2026-10-22).
+    # Starting the cooldown here marks the incident as "being handled" so the
+    # wake-word safety net below stays quiet while the confirmation runs.
+    - set_conversation_response: ""
+    - action: timer.start
+      target:
+        entity_id: timer.vivajot_alert_cooldown
+    - event: vivajot_confirm_help
+      event_data:
+        device_id: "{{ trigger.device_id | default('', true) }}"
+        heard: "{{ trigger.sentence | default('I need help', true) }}"
+
+# --- VOICE SPEAKER: HELP CONFIRMATION (asks before alerting) ---
+# "Do you need help?" - explicit "no" cancels quietly; "yes", anything
+# unclear, or SILENCE alerts (fail-safe: an unconscious resident still
+# gets help). Runs in the background so the conversation trigger returns
+# immediately.
+- id: "vivajot_voice_help_confirm"
+  alias: "VivaJot Voice - Help Confirmation"
+  description: "Confirms a help request before alerting; silence or yes alerts, only a clear no cancels"
+  mode: single
+  max_exceeded: silent
+  trigger:
+    - trigger: event
+      event_type: vivajot_confirm_help
+  variables:
+    sat_entity: >
+      {% set dev = trigger.event.data.device_id | default('', true) %}
+      {% set dev_sats = device_entities(dev) | select('match', '^assist_satellite\.') | list if dev else [] %}
+      {{ dev_sats[0] if dev_sats | count > 0 else (states.assist_satellite | map(attribute='entity_id') | first | default('', true)) }}
+  condition:
+    - condition: template
+      value_template: "{{ sat_entity != '' }}"
+  action:
+    - delay: "00:00:01"
+    - action: assist_satellite.ask_question
+      continue_on_error: true
+      target:
+        entity_id: "{{ sat_entity }}"
+      data:
+        question: "Do you need help? Please say yes or no."
+        preannounce: false
+        answers:
+          - id: "confirm_no"
+            sentences:
+              - "no"
+              - "nope"
+              - "no thank you"
+              - "no i don't"
+              - "i'm ok"
+              - "i am ok"
+              - "i'm okay"
+              - "i am okay"
+              - "i'm fine"
+              - "i am fine"
+              - "i'm safe"
+              - "i am safe"
+              - "i'm alright"
+              - "i am alright"
+              - "all good"
+              - "false alarm"
+              - "cancel"
+          - id: "confirm_yes"
+            sentences:
+              - "yes"
+              - "yeah"
+              - "yep"
+              - "help"
+              - "help me"
+              - "i need help"
+              - "i fell"
+              - "i'm hurt"
+              - "i am hurt"
+              - "send help"
+      response_variable: confirm_answer
+    - choose:
+        - conditions: "{{ confirm_answer is defined and confirm_answer.id is defined and confirm_answer.id == 'confirm_no' }}"
+          sequence:
+            - action: assist_satellite.announce
+              continue_on_error: true
+              target:
+                entity_id: "{{ sat_entity }}"
+              data:
+                message: "Okay, no alert sent. Say Help Help any time you need me."
+                preannounce: false
+      # yes, unclear, or silence: alert. Fail-safe by design.
+      default:
         - action: viva_renamer.voice_alert
           data:
             intent: "help"
-            device_id: "{{ trigger.device_id | default('', true) }}"
-            details: "Urgent Voice Alert: Resident said {{ trigger.sentence | default('I need help', true) }} to the VivaJot Smart Speaker. Immediate check-in recommended."
-    # Coaching flow dedupes itself (mode single): safe to fire every time.
-    - event: vivajot_start_fall_coaching
-      event_data:
-        device_id: "{{ trigger.device_id | default('', true) }}"
+            device_id: "{{ trigger.event.data.device_id | default('', true) }}"
+            details: "Urgent Voice Alert: Resident said {{ trigger.event.data.heard | default('I need help', true) }} to the VivaJot Smart Speaker{{ '' if confirm_answer is defined and confirm_answer.id is defined else ' and did not answer the confirmation' }}. Immediate check-in recommended."
+        - action: assist_satellite.announce
+          continue_on_error: true
+          target:
+            entity_id: "{{ sat_entity }}"
+          data:
+            message: "Help is on the way. I have notified your family and caregiver right now. Please stay still and do not try to stand up."
+            preannounce: false
+        - event: vivajot_start_fall_coaching
+          event_data:
+            device_id: "{{ trigger.event.data.device_id | default('', true) }}"
 
-# Runs in the background after vivajot_voice_help finishes speaking its initial response,
+# Runs in the background after the help confirmation finishes speaking,
 # so the conversation trigger returns immediately instead of blocking on delays/ask_question.
 - id: "vivajot_voice_fall_coaching"
   alias: "VivaJot Voice - Active Fall Coaching Follow-Up"
@@ -281,6 +363,11 @@
               - "i'm okay"
               - "i am fine"
               - "i'm fine"
+              - "i am safe"
+              - "i'm safe"
+              - "i am alright"
+              - "i'm alright"
+              - "all good"
               - "not hurt"
               - "no pain"
       response_variable: coaching_answer
@@ -371,6 +458,10 @@
       {% set match = sats | select('search', speaker_name | replace('-', '_')) | list %}
       {{ match[0] if match | count > 0 else (sats | first | default('', true)) }}
   action:
+    # Give the normal STT path 12 seconds to start the confirmation flow
+    # (which marks the cooldown). If nothing claimed the incident by then,
+    # STT is down: alert unconditionally - no transcription required.
+    - delay: "00:00:12"
     - if:
         - condition: state
           entity_id: timer.vivajot_alert_cooldown
@@ -383,15 +474,7 @@
           data:
             intent: "help"
             device_id: ""
-            details: "Urgent Voice Alert: Resident woke the VivaJot Smart Speaker ({{ speaker_name }}) with '{{ trigger.event.data.wake_word }}'. Immediate check-in recommended."
-    # Give the normal conversation path a moment; if it answered, stay quiet.
-    - delay: "00:00:08"
-    - if:
-        - condition: template
-          value_template: >
-            {{ state_attr('automation.vivajot_voice_help_fall_coaching', 'last_triggered') is none
-               or (now() - state_attr('automation.vivajot_voice_help_fall_coaching', 'last_triggered')).total_seconds() > 20 }}
-      then:
+            details: "Urgent Voice Alert: Resident woke the VivaJot Smart Speaker ({{ speaker_name }}) with '{{ trigger.event.data.wake_word }}' and speech processing was unavailable. Immediate check-in recommended."
         - action: assist_satellite.announce
           continue_on_error: true
           target:
@@ -427,8 +510,16 @@
         - "everything is fine"
         - "tell my family i am okay"
         - "tell my family i'm okay"
+        - "i am safe"
+        - "i'm safe"
+        - "all good"
         - "false alarm"
   action:
+    # Saying you're okay resolves any in-flight incident: mark the cooldown
+    # so stale help flows stay quiet.
+    - action: timer.start
+      target:
+        entity_id: timer.vivajot_alert_cooldown
     - set_conversation_response: "Great. I have let your family know that you are okay."
     - action: viva_renamer.voice_alert
       data:
