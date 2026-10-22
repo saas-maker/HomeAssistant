@@ -234,7 +234,7 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
 
         try:
             async with session.post(
-                url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=8)
+                url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=12)
             ) as resp:
                 if resp.status != 200:
                     err_text = await resp.text()
@@ -255,10 +255,12 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
                 await self.hass.async_add_executor_job(
                     self._log_bq_sync, "SUCCESS", f"Heard: '{text}' ({len(audio_bytes)}b)"
                 )
-                if text:
-                    return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
-                else:
-                    return stt.SpeechResult("", stt.SpeechResultState.ERROR)
+                # Empty transcript (silence / unclear speech) is NOT a failure:
+                # returning SUCCESS with no text lets the pipeline raise the
+                # benign stt-no-text-recognized, which the speaker firmware
+                # deliberately ignores. Returning ERROR here caused red-flash
+                # stt-stream-failed on every wake-word-only test (2026-10-22).
+                return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
         except Exception as req_ex:
             _LOGGER.error(f"VivaJot STT: Recognize request failed: {req_ex}")
             await self.hass.async_add_executor_job(

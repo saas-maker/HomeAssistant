@@ -54,6 +54,14 @@ google_pubsub:
 # Host reboots the ZHA watchdog has performed for the current radio incident.
 # Reset 15 minutes after any boot where ZHA came up healthy. Caps a physically
 # dead radio at 3 reboot attempts instead of an endless reboot loop.
+# --- VOICE ALERT COOLDOWN ---
+# While running, duplicate help alerts are suppressed (wake-word path and
+# conversation path both check it) so a resident repeating the wake word
+# reassures them without respamming caregivers.
+timer:
+  vivajot_alert_cooldown:
+    duration: "00:01:30"
+
 counter:
   vivajot_zha_reboots:
     name: "VivaJot ZHA watchdog reboots"

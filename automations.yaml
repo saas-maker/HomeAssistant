@@ -207,11 +207,22 @@
         - "emergency"
   action:
     - set_conversation_response: "Help is on the way. I have notified your family and caregiver right now. Please stay still and do not try to stand up."
-    - action: viva_renamer.voice_alert
-      data:
-        intent: "help"
-        device_id: "{{ trigger.device_id | default('', true) }}"
-        details: "Urgent Voice Alert: Resident said {{ trigger.sentence | default('I need help', true) }} to the VivaJot Smart Speaker. Immediate check-in recommended."
+    # Alert only once per cooldown window; the wake-word automation below may
+    # already have alerted for this incident.
+    - if:
+        - condition: state
+          entity_id: timer.vivajot_alert_cooldown
+          state: idle
+      then:
+        - action: timer.start
+          target:
+            entity_id: timer.vivajot_alert_cooldown
+        - action: viva_renamer.voice_alert
+          data:
+            intent: "help"
+            device_id: "{{ trigger.device_id | default('', true) }}"
+            details: "Urgent Voice Alert: Resident said {{ trigger.sentence | default('I need help', true) }} to the VivaJot Smart Speaker. Immediate check-in recommended."
+    # Coaching flow dedupes itself (mode single): safe to fire every time.
     - event: vivajot_start_fall_coaching
       event_data:
         device_id: "{{ trigger.device_id | default('', true) }}"
@@ -221,7 +232,10 @@
 - id: "vivajot_voice_fall_coaching"
   alias: "VivaJot Voice - Active Fall Coaching Follow-Up"
   description: "Conducts interactive follow-up check-in after initial emergency voice response finishes speaking"
-  mode: restart
+  # single+silent: a resident re-triggering mid-check-in must not cancel the
+  # question in progress or start a second overlapping coaching session.
+  mode: single
+  max_exceeded: silent
   trigger:
     - trigger: event
       event_type: vivajot_start_fall_coaching
@@ -331,6 +345,63 @@
       data:
         message: "Reminder: Your caregiver has been notified and help is on the way. Please stay calm and rest comfortably."
         preannounce: false
+
+# --- VOICE SPEAKER: HELP ALERT ON WAKE WORD (STT-INDEPENDENT SAFETY NET) ---
+# The speaker reports every wake word as an esphome.vivajot_wake_word event
+# (firmware 26.10.22.4+). A help wake word IS the emergency: the Risk-99 alert
+# fires here even when the speech-to-text pipeline is down (observed failing
+# 2026-10-22), so no transcription is ever required to summon help. If STT is
+# healthy, the conversation automation above handles the spoken reassurance;
+# this one only speaks if that path stayed silent.
+- id: "vivajot_voice_help_wake_event"
+  alias: "VivaJot Voice - Help Alert on Wake Word"
+  description: "Fires the help alert from the wake word itself, independent of speech-to-text"
+  mode: single
+  max_exceeded: silent
+  trigger:
+    - trigger: event
+      event_type: esphome.vivajot_wake_word
+  condition:
+    - condition: template
+      value_template: "{{ 'help' in (trigger.event.data.wake_word | default('') | lower) }}"
+  variables:
+    speaker_name: "{{ trigger.event.data.device_name | default('', true) }}"
+    sat_entity: >
+      {% set sats = states.assist_satellite | map(attribute='entity_id') | list %}
+      {% set match = sats | select('search', speaker_name | replace('-', '_')) | list %}
+      {{ match[0] if match | count > 0 else (sats | first | default('', true)) }}
+  action:
+    - if:
+        - condition: state
+          entity_id: timer.vivajot_alert_cooldown
+          state: idle
+      then:
+        - action: timer.start
+          target:
+            entity_id: timer.vivajot_alert_cooldown
+        - action: viva_renamer.voice_alert
+          data:
+            intent: "help"
+            device_id: ""
+            details: "Urgent Voice Alert: Resident woke the VivaJot Smart Speaker ({{ speaker_name }}) with '{{ trigger.event.data.wake_word }}'. Immediate check-in recommended."
+    # Give the normal conversation path a moment; if it answered, stay quiet.
+    - delay: "00:00:08"
+    - if:
+        - condition: template
+          value_template: >
+            {{ state_attr('automation.vivajot_voice_help_fall_coaching', 'last_triggered') is none
+               or (now() - state_attr('automation.vivajot_voice_help_fall_coaching', 'last_triggered')).total_seconds() > 20 }}
+      then:
+        - action: assist_satellite.announce
+          continue_on_error: true
+          target:
+            entity_id: "{{ sat_entity }}"
+          data:
+            message: "Help is on the way. I have notified your family and caregiver right now. Please stay still and do not try to stand up."
+            preannounce: false
+        - event: vivajot_start_fall_coaching
+          event_data:
+            device_id: ""
 
 # --- VOICE SPEAKER: ALL CLEAR / I AM OKAY (STEP 1) ---
 # Triggers when resident says "I am okay" or "I'm fine" to send a reassuring All Clear (Risk 0)
