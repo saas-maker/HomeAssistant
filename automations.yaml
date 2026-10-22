@@ -268,21 +268,52 @@
               - "all good"
               - "false alarm"
               - "cancel"
+              - "cancel that"
+              - "never mind"
+              - "nevermind"
+              - "i don't need help"
+              - "i do not need help"
+              - "no help"
+              - "don't call for help"
+              - "do not call for help"
+              - "don't call anyone"
+              - "do not call anyone"
+              - "don't send help"
+              - "do not send help"
+              - "don't call my family"
+              - "do not call my family"
           - id: "confirm_yes"
             sentences:
               - "yes"
               - "yeah"
               - "yep"
+              - "yes please"
               - "help"
               - "help me"
+              - "help help"
               - "i need help"
+              - "please help me"
               - "i fell"
+              - "i fell down"
+              - "i can't get up"
+              - "i cannot get up"
               - "i'm hurt"
               - "i am hurt"
+              - "it hurts"
               - "send help"
+              - "call my family"
+              - "hurry"
       response_variable: confirm_answer
+    - variables:
+        # Catch the whole class of natural cancellations, not an enumerated
+        # list: negation/okay words with no danger words means "no".
+        heard_sentence: "{{ confirm_answer.sentence | default('', true) if confirm_answer is defined else '' }}"
+        sounds_like_cancel: >
+          {{ heard_sentence != ''
+             and heard_sentence | regex_search("(?i)\b(no|not|don'?t|never ?mind|nevermind|ok|okay|fine|alright|safe)\b")
+             and not heard_sentence | regex_search("(?i)\b(yes|yeah|fell|fall|fallen|hurt|hurts|pain|hurry|can'?t)\b") }}
     - choose:
-        - conditions: "{{ confirm_answer is defined and confirm_answer.id is defined and confirm_answer.id == 'confirm_no' }}"
+        - conditions: "{{ (confirm_answer is defined and confirm_answer.id is defined and confirm_answer.id == 'confirm_no') or sounds_like_cancel }}"
           sequence:
             - action: assist_satellite.announce
               continue_on_error: true
@@ -291,7 +322,7 @@
               data:
                 message: "Okay, no alert sent. Say Help Help any time you need me."
                 preannounce: false
-      # yes, unclear, or silence: alert. Fail-safe by design.
+      # yes, ambiguous, unintelligible, or silence: alert. Fail-safe by design.
       default:
         - action: viva_renamer.voice_alert
           data:
