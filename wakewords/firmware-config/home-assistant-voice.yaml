@@ -42,9 +42,9 @@ esphome:
   on_boot:
     priority: 375
     then:
-      # VivaJot speakers listen for both help phrases out of the box
+      # VivaJot speakers listen for both default phrases out of the box
       # (micro_wake_word auto-enables only the first listed model).
-      - micro_wake_word.enable_model: help_help
+      - micro_wake_word.enable_model: vivajot
       # Run the script to refresh the LED status
       - script.execute: control_leds
       - delay: 1s
@@ -1731,11 +1731,14 @@ micro_wake_word:
   stop_after_detection: false
   models:
     # First model = enabled by default on first boot (micro_wake_word behavior).
-    # VivaJot speakers must wake on "VivaJot Help" with no HA interaction.
-    - model: vivajot_help.json
-      id: vivajot_help
+    # VivaJot speakers wake on "Help Help" (emergency) and "VivaJot" (assistant,
+    # enabled in on_boot) with no HA interaction. "VivaJot Help" stays available.
     - model: help_help.json
       id: help_help
+    - model: vivajot.json
+      id: vivajot
+    - model: vivajot_help.json
+      id: vivajot_help
     - model: https://github.com/kahrendt/microWakeWord/releases/download/okay_nabu_20241226.3/okay_nabu.json
       id: okay_nabu
     - model: hey_jarvis
