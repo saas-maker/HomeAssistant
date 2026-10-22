@@ -1,6 +1,6 @@
-{
+﻿{
   "name": "VivaJot Voice PE",
-  "version": "26.10.22.1",
+  "version": "26.10.22.2",
   "new_install_prompt_erase": false,
   "builds": [
     {
