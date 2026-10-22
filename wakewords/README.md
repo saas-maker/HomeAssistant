@@ -24,7 +24,31 @@ the device until the wake word fires (important for health-facility privacy).
   positives during validation. NOT yet validated against real distressed
   speech at distance — do live room testing before relying on it.
 
-## Deploying to a Voice PE
+## Flashing a NEW speaker (easiest way)
+
+Open the flash page in Chrome/Edge on any machine, plug the speaker in over
+USB-C, click Connect -> Install:
+
+    https://saas-maker.github.io/HomeAssistant/wakewords/firmware/flash.html
+
+(Requires GitHub Pages enabled once: repo Settings -> Pages -> Deploy from
+branch -> master, / root.)
+
+## Updates AFTER the first flash: automatic, over Wi-Fi
+
+Firmware v26.10.22.1+ checks
+`raw.githubusercontent.com/saas-maker/HomeAssistant/master/wakewords/firmware/ota_manifest.json`
+instead of Nabu Casa's server, so flashed speakers pull updates from this
+repo (shows as a normal firmware update in HA; also auto-installable).
+To ship new firmware: rebuild, copy the new .bin files here, bump `version`
+in `ota_manifest.json` (+ `flash_manifest.json`) and update the md5, push.
+The device's "Beta firmware" toggle switches it to `ota_manifest_beta.json`
+for staged rollouts.
+
+NOTE: do NOT accept firmware updates on speakers still running stock
+Nabu Casa firmware pre-flash; stock updates would keep them on stock.
+
+## Deploying to a Voice PE (manual / ESPHome Builder route)
 
 1. In HA: ESPHome Builder -> adopt the Voice PE (takeover).
 2. In the device YAML add (merge with existing `micro_wake_word` block if the

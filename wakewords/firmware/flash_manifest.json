@@ -1,0 +1,13 @@
+{
+  "name": "VivaJot Voice PE",
+  "version": "26.10.22.1",
+  "new_install_prompt_erase": false,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "voice-pe-vivajot.factory.bin", "offset": 0 }
+      ]
+    }
+  ]
+}

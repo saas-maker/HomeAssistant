@@ -1,0 +1,16 @@
+{
+  "name": "VivaJot Voice PE (beta channel)",
+  "version": "26.10.22.1",
+  "home_assistant_domain": "esphome",
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "ota": {
+        "path": "voice-pe-vivajot.ota.bin",
+        "md5": "040252f9a7cf450f178341c3573dadba",
+        "summary": "Beta channel - currently identical to production",
+        "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
+      }
+    }
+  ]
+}
