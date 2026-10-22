@@ -42,6 +42,9 @@ esphome:
   on_boot:
     priority: 375
     then:
+      # VivaJot speakers listen for both help phrases out of the box
+      # (micro_wake_word auto-enables only the first listed model).
+      - micro_wake_word.enable_model: help_help
       # Run the script to refresh the LED status
       - script.execute: control_leds
       - delay: 1s
@@ -1749,6 +1752,13 @@ micro_wake_word:
         condition:
           switch.is_off: master_mute_switch
         then:
+          # VivaJot: report every wake word to Home Assistant as an event so
+          # help alerts can fire even when the STT pipeline is broken.
+          - homeassistant.event:
+              event: esphome.vivajot_wake_word
+              data:
+                wake_word: !lambda return wake_word;
+                device_name: !lambda return App.get_name();
           # If a timer is ringing: Stop it, do not start the voice assistant (We can stop timer from voice!)
           - if:
               condition:
@@ -1769,9 +1779,15 @@ micro_wake_word:
                             media_player.is_announcing:
                               id: external_media_player
                           then:
+                            # VivaJot: a wake word during coaching announcements must
+                            # START a new session, not just silence the speaker -
+                            # a resident retrying "Help Help" was being swallowed here.
                             - media_player.stop:
                                 announcement: true
                                 id: external_media_player
+                            - delay: 200ms
+                            - voice_assistant.start:
+                                wake_word: !lambda return wake_word;
                           # Start the voice assistant and play the wake sound, if enabled
                           else:
                             - if:
@@ -1785,6 +1801,22 @@ micro_wake_word:
                                   - delay: 300ms
                             - voice_assistant.start:
                                 wake_word: !lambda return wake_word;
+
+# VivaJot watchdog: wake detection must never die silently. Repeated
+# pipeline errors have been observed to leave the speaker permanently
+# deaf until reboot; cycling micro_wake_word while idle recovers the
+# audio path with no effect on normal operation.
+interval:
+  - interval: 120s
+    then:
+      - if:
+          condition:
+            not:
+              voice_assistant.is_running:
+          then:
+            - micro_wake_word.stop:
+            - delay: 500ms
+            - micro_wake_word.start:
 
 select:
   - platform: template
