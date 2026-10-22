@@ -1,13 +1,13 @@
 {
   "name": "VivaJot Voice PE",
-  "version": "26.10.22.5",
+  "version": "26.10.22.6",
   "home_assistant_domain": "esphome",
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "ota": {
         "path": "voice-pe-vivajot.ota.bin",
-        "md5": "48f0ccdca62a852c52ee9dbc7f11ddca",
+        "md5": "21dabed0cd591c96f5203f22c39d6fcd",
         "summary": "VivaJot Help + Help Help wake words; OTA updates from VivaJot repo",
         "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
       }
