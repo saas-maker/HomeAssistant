@@ -29,10 +29,12 @@ the device until the wake word fires (important for health-facility privacy).
 Open the flash page in Chrome/Edge on any machine, plug the speaker in over
 USB-C, click Connect -> Install:
 
-    https://saas-maker.github.io/HomeAssistant/wakewords/firmware/flash.html
+    /Plugins/VivaJot/flash.html   (on the VivaJot production site, HTTPS)
 
-(Requires GitHub Pages enabled once: repo Settings -> Pages -> Deploy from
-branch -> master, / root.)
+The page source lives in the SaasMaker web app at
+Plugins/VivaJot/flash.html and always installs the latest firmware from
+this repo (it reads firmware/flash_manifest.json via raw.githubusercontent,
+so firmware releases need no site changes).
 
 ## Updates AFTER the first flash: automatic, over Wi-Fi
 
