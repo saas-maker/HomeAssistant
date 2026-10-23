@@ -362,6 +362,13 @@
       value_template: "{{ sat_entity != '' }}"
   action:
     - delay: "00:00:12"
+    # Scheduled speech yields to the resident: never interrogate while they
+    # are mid-conversation with the speaker, and never after "stop"/"shut up".
+    - condition: state
+      entity_id: timer.vivajot_coaching_mute
+      state: idle
+    - condition: template
+      value_template: "{{ states(sat_entity) == 'idle' }}"
     - action: assist_satellite.ask_question
       continue_on_error: true
       target:
@@ -454,8 +461,14 @@
                 intent: "help"
                 device_id: "{{ trigger.event.data.device_id | default('', true) }}"
                 details: "Help follow-up: No verbal response from resident after initial help request. Please check on them urgently."
-    # 30-second calming coaching reminder
+    # 30-second calming coaching reminder (skipped after "stop", and never
+    # spoken over an active conversation)
     - delay: "00:00:30"
+    - condition: state
+      entity_id: timer.vivajot_coaching_mute
+      state: idle
+    - condition: template
+      value_template: "{{ states(sat_entity) == 'idle' }}"
     - action: assist_satellite.announce
       continue_on_error: true
       target:
@@ -516,6 +529,32 @@
         - event: vivajot_start_fall_coaching
           event_data:
             device_id: ""
+
+# --- VOICE SPEAKER: STOP / SHUT UP (silences coaching, never the alert) ---
+- id: "vivajot_voice_stop"
+  alias: "VivaJot Voice - Stop Talking"
+  description: "Resident can silence coaching questions and reminders; alerts stay active"
+  mode: single
+  max_exceeded: silent
+  trigger:
+    - trigger: conversation
+      command:
+        - "stop"
+        - "shut up"
+        - "be quiet"
+        - "quiet"
+        - "stop talking"
+        - "stop it"
+        - "that's enough"
+        - "that is enough"
+        - "enough"
+        - "leave me alone"
+        - "no more"
+  action:
+    - action: timer.start
+      target:
+        entity_id: timer.vivajot_coaching_mute
+    - set_conversation_response: "Okay."
 
 # --- VOICE SPEAKER: ALL CLEAR / I AM OKAY (STEP 1) ---
 # Triggers when resident says "I am okay" or "I'm fine" to send a reassuring All Clear (Risk 0)

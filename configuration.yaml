@@ -61,6 +61,10 @@ google_pubsub:
 timer:
   vivajot_alert_cooldown:
     duration: "00:01:30"
+  # "Stop"/"shut up" starts this; while running, coaching questions and
+  # reminders stay silent. Never cancels an alert.
+  vivajot_coaching_mute:
+    duration: "00:10:00"
 
 counter:
   vivajot_zha_reboots:
