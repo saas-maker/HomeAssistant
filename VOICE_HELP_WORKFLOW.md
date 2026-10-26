@@ -228,8 +228,10 @@ newest one.
 ### Wake-word tuning (only after the flow ships)
 Under this flow a false wake can never page anyone, but it does speak one question into
 the room, possibly at night. Measure the false-wake rate on the new flow first. Then, if
-an occasional question is acceptable, lower `help_help` from 0.8 to about 0.65 and enable
-the already trained `vivajot_help` model. In the same firmware rebuild, remove the stock
+an occasional question is acceptable, lower `help_help` from 0.8 to about 0.65. There is
+no separate "VivaJot Help" wake word (decided): "VivaJot" wakes the speaker and the word
+"help" after it is ordinary speech that the conversation handler turns into the question.
+In the same firmware rebuild, remove the stock
 on-device "stop" word: it cuts the speaker off whenever "stop" is heard during speech,
 even inside a sentence, which contradicts rule 4 ("VivaJot, stop" already covers it).
 Retraining `help_help` with more and older voices remains the long-term fix (see
@@ -259,13 +261,11 @@ Retraining `help_help` with more and older voices remains the long-term fix (see
    **recall** (measure the false-wake rate on the new flow first).
 2. **Then lower `help_help` to ~0.6–0.65** (manifest JSON change, no retrain). More false
    wakes, far fewer misses — and every false wake is absorbed by the question.
-3. **Enable `vivajot_help` ("VivaJot Help") as a third active model.** Already trained and
-   shipped in firmware, 4 syllables + distinct phonetics (it detected at 0.85–0.94 in
-   field tests). One `on_boot` line.
-4. **Lean on the reliable word in resident training materials:** "Say *VivaJot*, then tell
-   it what you need" — the conversation path catches all 27 help phrases after a VivaJot
-   wake, so the emergency word is a backup, not the only road.
-5. **Retrain `help_help` properly** (the real fix for cause 1/3): more samples, varied
+3. **Lean on the reliable word in resident training materials:** "Say *VivaJot*, then tell
+   it what you need" — "VivaJot, help" wakes on "VivaJot" and the conversation handler
+   turns "help" into the confirmation question, so the emergency word is a backup, not
+   the only road. (No separate "VivaJot Help" wake word — decided against.)
+4. **Retrain `help_help` properly** (the real fix for cause 1/3): more samples, varied
    inter-word gaps and speeds, aged-voice augmentation; see
    [wakewords/README.md](wakewords/README.md) and the Colab notebook. This is the only
    fix for phrases that score ≥ cutoff on garbage ("need to stop" → 1.00 on `vivajot`).

@@ -57,7 +57,7 @@ wake does the speaker stream the following utterance to the hub for STT.
 |---|---|---|
 | `help_help` ("Help Help") | Emergency word, default-enabled (listed first) | 0.8 |
 | `vivajot` ("VivaJot") | Assistant word, enabled by `on_boot` | 0.7 |
-| `vivajot_help` ("VivaJot Help") | Spare, trained but not normally enabled | 0.7 |
+| `vivajot_help` ("VivaJot Help") | Trained but **not used** (decided against: "VivaJot" + spoken "help" covers it) | — |
 | `stop` (stock) | Interrupts TTS playback locally | stock |
 
 Only the first-listed model is enabled by default in the ESPHome component; the others are
