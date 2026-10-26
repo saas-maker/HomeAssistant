@@ -122,7 +122,8 @@ replaces every earlier TO-BE draft.
 |---|---|
 | Wake, nothing said yet | I'm here. Do you need help? |
 | Wake, they already asked for help ("VivaJot, I fell") | I heard you need help. Should I alert your caregiver? |
-| Didn't understand | Sorry, I didn't catch that. Do you need help? |
+| Didn't understand | Sorry, I didn't catch that. Do you need help? Just say yes or no. |
+| Spoke again, still not understood | I didn't send an alert. If you need help, say VivaJot, help. |
 | No | Okay, I won't send anything. |
 | Alert sent | I've sent your caregiver an alert. Stay where you are. |
 | Alert failed | I couldn't send the alert. Please use your phone. |
@@ -151,10 +152,10 @@ The answer to the question:
 
 | Answer | Result |
 |---|---|
-| Yes, yeah, yep, please, yes please, help, help me, I fell, I can't get up | Alert (section B) |
+| Yes, yeah, yep, please, yes please, help, help me, I fell, I can't get up, or any answer that starts with yes, yeah or yep ("yes, my hip hurts") | Alert (section B) |
 | No, nope, I'm okay, I'm fine, I'm alright, never mind, false alarm | "Okay, I won't send anything." The flow ends and nothing is suppressed afterwards. |
 | Stop, shut up, be quiet (with or without "VivaJot") | "Okay." The flow ends; the second ask and the follow-up are skipped. |
-| Unclear, or silence | Ask once more: "Sorry, I didn't catch that. Do you need help?" Same answers apply. Unclear or silent again: say nothing more, send nothing. |
+| Unclear, or silence | Ask once more: "Sorry, I didn't catch that. Do you need help? Just say yes or no." Same answers apply. Still unclear: send nothing, and if they spoke, say "I didn't send an alert. If you need help, say VivaJot, help." so no one believes an alert went out. Silent again: say nothing. |
 
 A yes wins if both appear ("no, I need help"). A bare "okay" is unclear (it can mean
 either), so it gets the second ask.

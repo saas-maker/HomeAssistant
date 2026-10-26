@@ -403,6 +403,9 @@
               - "i cannot get up"
               - "no i need help"
               - "no please help"
+              - "yes {extra}"
+              - "yeah {extra}"
+              - "yep {extra}"
           - id: "no"
             sentences:
               - "no"
@@ -516,7 +519,7 @@
           target:
             entity_id: "{{ sat_entity }}"
           data:
-            question: "Sorry, I didn't catch that. Do you need help?"
+            question: "Sorry, I didn't catch that. Do you need help? Just say yes or no."
             preannounce: false
             answers:
               - id: "yes"
@@ -540,6 +543,9 @@
                   - "i cannot get up"
                   - "no i need help"
                   - "no please help"
+                  - "yes {extra}"
+                  - "yeah {extra}"
+                  - "yep {extra}"
               - id: "no"
                 sentences:
                   - "no"
@@ -642,7 +648,20 @@
                       data:
                         message: "I couldn't send the alert. Please use your phone."
                         preannounce: false
-          # Unclear or silent again: say nothing more, send nothing.
+          # Unclear again: if they spoke, say plainly that nothing was sent, so no one
+          # believes an alert went out. Silence stays silent.
+          default:
+            - if:
+                - condition: template
+                  value_template: "{{ s2_raw != '' }}"
+              then:
+                - action: assist_satellite.announce
+                  continue_on_error: true
+                  target:
+                    entity_id: "{{ sat_entity }}"
+                  data:
+                    message: "I didn't send an alert. If you need help, say VivaJot, help."
+                    preannounce: false
 
 # --- VOICE SPEAKER: FOLLOW-UP CHECK-IN (SECTION C) ---
 # About 10 seconds after the alert line, unless they said stop: "Are you hurt?"
