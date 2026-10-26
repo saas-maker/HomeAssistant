@@ -54,15 +54,17 @@ google_pubsub:
 # Host reboots the ZHA watchdog has performed for the current radio incident.
 # Reset 15 minutes after any boot where ZHA came up healthy. Caps a physically
 # dead radio at 3 reboot attempts instead of an endless reboot loop.
-# --- VOICE ALERT COOLDOWN ---
-# While running, duplicate help alerts are suppressed (wake-word path and
-# conversation path both check it) so a resident repeating the wake word
-# reassures them without respamming caregivers.
+# --- VOICE INCIDENT STATE & MUTE ---
+# Tracks an active voice help incident (turns on when a help alert is published,
+# turns off on "I'm okay" or after 30 minutes).
+input_boolean:
+  vivajot_help_active:
+    name: "VivaJot Help Alert Active"
+    initial: false
+
 timer:
-  vivajot_alert_cooldown:
-    duration: "00:01:30"
-  # "Stop"/"shut up" starts this; while running, coaching questions and
-  # reminders stay silent. Never cancels an alert.
+  # "Stop" starts this; while running, the follow-up question stays silent.
+  # Never cancels an alert.
   vivajot_coaching_mute:
     duration: "00:10:00"
 

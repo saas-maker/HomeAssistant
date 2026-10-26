@@ -1,5 +1,5 @@
 import logging, os, json, threading, time, fnmatch, subprocess, urllib.request
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, SupportsResponse
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 from google.cloud import pubsub_v1
 from google.api_core.exceptions import NotFound
@@ -62,6 +62,7 @@ def setup(hass: HomeAssistant, config: dict):
         intent = call.data.get("intent", "help")
         details = call.data.get("details", "")
         device_id = call.data.get("device_id", "")
+        notify = bool(call.data.get("notify", False))
         target_install_id = install_id
 
         # Support multi-apartment shared hubs: if speaker device/entity has @APT tag, append :APT
@@ -105,15 +106,29 @@ def setup(hass: HomeAssistant, config: dict):
                     "location_name": "VoicePE",
                     "status": "TRIGGER",
                     "action_request": (details or "")[:200],
+                    "notify": notify,
                 }
-                publisher.publish(pub_path, json.dumps(confirm).encode("utf-8"))
-                _LOGGER.warning(f"VivaJot Voice Alert published to Pub/Sub ({intent}) for {target_install_id}")
+                future = publisher.publish(pub_path, json.dumps(confirm).encode("utf-8"))
+                future.result(timeout=10)
+                _LOGGER.warning(
+                    f"VivaJot Voice Alert published to Pub/Sub ({intent}, notify={notify}) for {target_install_id}"
+                )
+                return True
             except Exception as e:
                 _LOGGER.error(f"VivaJot Voice Alert Pub/Sub publish failed for {target_install_id}: {e}")
+                return False
 
-        await hass.async_add_executor_job(_post_alert)
+        published = await hass.async_add_executor_job(_post_alert)
+        return {"published": published}
 
-    hass.add_job(hass.services.async_register, DOMAIN, "voice_alert", handle_voice_alert)
+    hass.add_job(
+        hass.services.async_register,
+        DOMAIN,
+        "voice_alert",
+        handle_voice_alert,
+        None,
+        SupportsResponse.OPTIONAL,
+    )
 
     diag_sent = {"done": False}
 
