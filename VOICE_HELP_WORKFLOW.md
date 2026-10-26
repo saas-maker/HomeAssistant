@@ -112,6 +112,9 @@ replaces every earlier TO-BE draft.
    ("can't", "fell" and "hurt" all have innocent daily uses).
 4. **"Stop" means be quiet, anywhere, any time.** The speaker stops talking, says
    "Okay." and asks nothing more. It never cancels an alert that was already sent.
+   Stop counts only when it is the whole answer ("stop", "shut up", "be quiet", with or
+   without "VivaJot" in front); a sentence that merely contains the word ("I can't stop
+   bleeding", "stop and listen") is not a stop.
 5. **One emergency is one incident row**, enforced in the cloud.
 
 ### Spoken lines (the complete set; nothing else is spoken)
@@ -149,7 +152,8 @@ The answer to the question:
 | Answer | Result |
 |---|---|
 | Yes, yeah, yep, please, yes please, help, help me, I fell, I can't get up | Alert (section B) |
-| No, nope, I'm okay, I'm fine, I'm alright, never mind, false alarm, stop | "Okay, I won't send anything." The flow ends and nothing is suppressed afterwards. |
+| No, nope, I'm okay, I'm fine, I'm alright, never mind, false alarm | "Okay, I won't send anything." The flow ends and nothing is suppressed afterwards. |
+| Stop, shut up, be quiet (with or without "VivaJot") | "Okay." The flow ends; the second ask and the follow-up are skipped. |
 | Unclear, or silence | Ask once more: "Sorry, I didn't catch that. Do you need help?" Same answers apply. Unclear or silent again: say nothing more, send nothing. |
 
 A yes wins if both appear ("no, I need help"). A bare "okay" is unclear (it can mean
@@ -224,8 +228,11 @@ newest one.
 Under this flow a false wake can never page anyone, but it does speak one question into
 the room, possibly at night. Measure the false-wake rate on the new flow first. Then, if
 an occasional question is acceptable, lower `help_help` from 0.8 to about 0.65 and enable
-the already trained `vivajot_help` model. Retraining `help_help` with more and older
-voices remains the long-term fix (see [wakewords/README.md](wakewords/README.md)).
+the already trained `vivajot_help` model. In the same firmware rebuild, remove the stock
+on-device "stop" word: it cuts the speaker off whenever "stop" is heard during speech,
+even inside a sentence, which contradicts rule 4 ("VivaJot, stop" already covers it).
+Retraining `help_help` with more and older voices remains the long-term fix (see
+[wakewords/README.md](wakewords/README.md)).
 
 ---
 

@@ -182,7 +182,8 @@
       {{ utterance_raw | lower
          | regex_replace("[^a-z0-9' ]", " ")
          | regex_replace("\\s+", " ")
-         | trim }}
+         | trim
+         | regex_replace("^viva ?jot ", "") }}
     is_stop: >
       {{ utterance_norm in [
            'stop', 'shut up', 'be quiet', 'quiet', 'stop talking', 'stop it',
@@ -353,10 +354,25 @@
       {{ dev_sats[0] if dev_sats | count > 0 else (states.assist_satellite | map(attribute='entity_id') | first | default('', true)) }}
     opening_question: "{{ trigger.event.data.opening_question | default(\"I'm here. Do you need help?\", true) }}"
     initial_heard: "{{ (trigger.event.data.heard | default('', true) | string).strip() }}"
+    stop_words:
+      - "stop"
+      - "shut up"
+      - "be quiet"
+      - "quiet"
+      - "stop talking"
+      - "stop it"
+      - "that's enough"
+      - "that is enough"
+      - "enough"
+      - "leave me alone"
+      - "no more"
   condition:
     - condition: template
       value_template: "{{ sat_entity != '' }}"
   action:
+    - action: timer.cancel
+      target:
+        entity_id: timer.vivajot_coaching_mute
     - delay: "00:00:01"
     - action: assist_satellite.ask_question
       continue_on_error: true
@@ -406,7 +422,6 @@
               - "never mind"
               - "nevermind"
               - "false alarm"
-              - "stop"
               - "i don't need help"
               - "i do not need help"
       response_variable: ans1
@@ -415,7 +430,27 @@
         id1: "{{ (ans1.id | default('', true)) if ans1 is defined and ans1 is mapping else '' }}"
         ans1_yes: "{{ id1 == 'yes' }}"
         ans1_no: "{{ id1 == 'no' }}"
+        s1_norm: >
+          {{ s1_raw | lower
+             | regex_replace("[^a-z0-9' ]", " ")
+             | regex_replace("\\s+", " ")
+             | trim
+             | regex_replace("^viva ?jot ", "") }}
+        ans1_stop: "{{ s1_norm in stop_words }}"
     - choose:
+        # Stop (with or without "VivaJot"): say Okay, ask nothing more.
+        - conditions: "{{ ans1_stop }}"
+          sequence:
+            - action: timer.start
+              target:
+                entity_id: timer.vivajot_coaching_mute
+            - action: assist_satellite.announce
+              continue_on_error: true
+              target:
+                entity_id: "{{ sat_entity }}"
+              data:
+                message: "Okay."
+                preannounce: false
         # First ask: clear No
         - conditions: "{{ ans1_no }}"
           sequence:
@@ -471,8 +506,11 @@
                     message: "I couldn't send the alert. Please use your phone."
                     preannounce: false
 
-      # First ask was unclear or silent -> Ask once more
+      # First ask was unclear or silent -> Ask once more, unless they said stop
       default:
+        - condition: state
+          entity_id: timer.vivajot_coaching_mute
+          state: idle
         - action: assist_satellite.ask_question
           continue_on_error: true
           target:
@@ -521,7 +559,6 @@
                   - "never mind"
                   - "nevermind"
                   - "false alarm"
-                  - "stop"
                   - "i don't need help"
                   - "i do not need help"
           response_variable: ans2
@@ -530,7 +567,27 @@
             id2: "{{ (ans2.id | default('', true)) if ans2 is defined and ans2 is mapping else '' }}"
             ans2_yes: "{{ id2 == 'yes' }}"
             ans2_no: "{{ id2 == 'no' }}"
+            s2_norm: >
+              {{ s2_raw | lower
+                 | regex_replace("[^a-z0-9' ]", " ")
+                 | regex_replace("\\s+", " ")
+                 | trim
+                 | regex_replace("^viva ?jot ", "") }}
+            ans2_stop: "{{ s2_norm in stop_words }}"
         - choose:
+            # Stop (with or without "VivaJot"): say Okay, ask nothing more.
+            - conditions: "{{ ans2_stop }}"
+              sequence:
+                - action: timer.start
+                  target:
+                    entity_id: timer.vivajot_coaching_mute
+                - action: assist_satellite.announce
+                  continue_on_error: true
+                  target:
+                    entity_id: "{{ sat_entity }}"
+                  data:
+                    message: "Okay."
+                    preannounce: false
             # Second ask: clear No
             - conditions: "{{ ans2_no }}"
               sequence:
@@ -637,7 +694,8 @@
           {{ coaching_raw | lower
              | regex_replace("[^a-z0-9' ]", " ")
              | regex_replace("\\s+", " ")
-             | trim }}
+             | trim
+             | regex_replace("^viva ?jot ", "") }}
         coaching_is_stop: >
           {{ coaching_norm in [
                'stop', 'shut up', 'be quiet', 'quiet', 'stop talking', 'stop it',
