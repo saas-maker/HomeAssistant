@@ -224,23 +224,39 @@
                 - condition: template
                   value_template: "{{ is_okay_active }}"
               then:
-                - action: input_boolean.turn_off
-                  target:
-                    entity_id: input_boolean.vivajot_help_active
-                - set_conversation_response: "Okay, I've told your caregiver you're okay."
                 - action: viva_renamer.voice_alert
+                  continue_on_error: true
                   data:
                     intent: "okay"
                     notify: true
                     device_id: "{{ trigger.device_id | default('', true) }}"
                     details: "{{ utterance_raw }}"
+                  response_variable: pub_okay
+                - if:
+                    - condition: template
+                      value_template: "{{ pub_okay is defined and pub_okay is mapping and pub_okay.get('published') == true }}"
+                  then:
+                    - action: input_boolean.turn_off
+                      target:
+                        entity_id: input_boolean.vivajot_help_active
+                    - set_conversation_response: "Okay, I've told your caregiver you're okay."
+                  else:
+                    - set_conversation_response: "I couldn't send that. Please use your phone."
               else:
-                - set_conversation_response: "Okay, I've sent that to your caregiver."
                 - action: viva_renamer.voice_alert
+                  continue_on_error: true
                   data:
                     intent: "help"
                     device_id: "{{ trigger.device_id | default('', true) }}"
                     details: "{{ utterance_raw }}"
+                  response_variable: pub_msg
+                - if:
+                    - condition: template
+                      value_template: "{{ pub_msg is defined and pub_msg is mapping and pub_msg.get('published') == true }}"
+                  then:
+                    - set_conversation_response: "Okay, I've sent that to your caregiver."
+                  else:
+                    - set_conversation_response: "I couldn't send that. Please use your phone."
 
         # Section A: No active alert — "I'm okay, I'm fine, never mind, false alarm"
         - conditions: "{{ is_okay_inactive }}"
@@ -290,8 +306,8 @@
       {% set match = sats | select('search', speaker_name | replace('-', '_')) | list %}
       {{ match[0] if match | count > 0 else (sats | first | default('', true)) }}
     resolved_device_id: "{{ device_id(sat_entity) | default('', true) if sat_entity != '' else '' }}"
-    conv_last_triggered: "{{ state_attr('automation.vivajot_voice_conversation', 'last_triggered') }}"
-    confirm_last_triggered: "{{ state_attr('automation.vivajot_voice_help_confirm', 'last_triggered') }}"
+    conv_last_triggered: "{{ state_attr('automation.vivajot_voice_conversation', 'last_triggered') | string }}"
+    confirm_last_triggered: "{{ state_attr('automation.vivajot_voice_help_confirm', 'last_triggered') | string }}"
   condition:
     - condition: template
       value_template: "{{ sat_entity != '' }}"
@@ -311,8 +327,8 @@
       state: "off"
     - condition: template
       value_template: >
-        {{ state_attr('automation.vivajot_voice_conversation', 'last_triggered') == conv_last_triggered
-           and state_attr('automation.vivajot_voice_help_confirm', 'last_triggered') == confirm_last_triggered
+        {{ (state_attr('automation.vivajot_voice_conversation', 'last_triggered') | string) == conv_last_triggered
+           and (state_attr('automation.vivajot_voice_help_confirm', 'last_triggered') | string) == confirm_last_triggered
            and (state_attr('automation.vivajot_voice_help_confirm', 'current') | int(0)) == 0 }}
     - event: vivajot_confirm_help
       event_data:
@@ -396,26 +412,9 @@
       response_variable: ans1
     - variables:
         s1_raw: "{{ (ans1.sentence | default('', true) | string).strip() if ans1 is defined and ans1 is mapping else '' }}"
-        s1: >
-          {{ s1_raw | lower
-             | regex_replace("[^a-z0-9' ]", " ")
-             | regex_replace("\\s+", " ")
-             | trim }}
         id1: "{{ (ans1.id | default('', true)) if ans1 is defined and ans1 is mapping else '' }}"
-        # A yes wins if both appear ("no, I need help"). Bare "okay" is unclear.
-        ans1_yes: >
-          {{ id1 == 'yes' or (
-               s1 != ''
-               and s1 is search("\\b(yes|yeah|yep|please|help|i fell|i have fallen|i've fallen|i can't get up|i cannot get up)\\b")
-               and not s1 is search("\\b(no thank|no thanks|don't need help|do not need help|no help)\\b")
-             ) }}
-        ans1_no: >
-          {{ not ans1_yes and (
-               id1 == 'no' or (
-                 s1 != ''
-                 and s1 is search("^(no|nope|no thank you|no thanks|no i don't|no i do not|i'm okay|i am okay|i'm ok|i am ok|i'm fine|i am fine|i'm alright|i am alright|never mind|nevermind|false alarm|stop|i don't need help|i do not need help)$")
-               )
-             ) }}
+        ans1_yes: "{{ id1 == 'yes' }}"
+        ans1_no: "{{ id1 == 'no' }}"
     - choose:
         # First ask: clear No
         - conditions: "{{ ans1_no }}"
@@ -528,25 +527,9 @@
           response_variable: ans2
         - variables:
             s2_raw: "{{ (ans2.sentence | default('', true) | string).strip() if ans2 is defined and ans2 is mapping else '' }}"
-            s2: >
-              {{ s2_raw | lower
-                 | regex_replace("[^a-z0-9' ]", " ")
-                 | regex_replace("\\s+", " ")
-                 | trim }}
             id2: "{{ (ans2.id | default('', true)) if ans2 is defined and ans2 is mapping else '' }}"
-            ans2_yes: >
-              {{ id2 == 'yes' or (
-                   s2 != ''
-                   and s2 is search("\\b(yes|yeah|yep|please|help|i fell|i have fallen|i've fallen|i can't get up|i cannot get up)\\b")
-                   and not s2 is search("\\b(no thank|no thanks|don't need help|do not need help|no help)\\b")
-                 ) }}
-            ans2_no: >
-              {{ not ans2_yes and (
-                   id2 == 'no' or (
-                     s2 != ''
-                     and s2 is search("^(no|nope|no thank you|no thanks|no i don't|no i do not|i'm okay|i am okay|i'm ok|i am ok|i'm fine|i am fine|i'm alright|i am alright|never mind|nevermind|false alarm|stop|i don't need help|i do not need help)$")
-                   )
-                 ) }}
+            ans2_yes: "{{ id2 == 'yes' }}"
+            ans2_no: "{{ id2 == 'no' }}"
         - choose:
             # Second ask: clear No
             - conditions: "{{ ans2_no }}"
@@ -676,17 +659,31 @@
         - conditions: "{{ coaching_raw != '' }}"
           sequence:
             - action: viva_renamer.voice_alert
+              continue_on_error: true
               data:
                 intent: "help"
                 device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "{{ coaching_raw }}"
-            - action: assist_satellite.announce
-              continue_on_error: true
-              target:
-                entity_id: "{{ sat_entity }}"
-              data:
-                message: "Okay, I've sent that to your caregiver."
-                preannounce: false
+                details: "Asked 'Are you hurt?': {{ coaching_raw }}"
+              response_variable: pub_followup
+            - if:
+                - condition: template
+                  value_template: "{{ pub_followup is defined and pub_followup is mapping and pub_followup.get('published') == true }}"
+              then:
+                - action: assist_satellite.announce
+                  continue_on_error: true
+                  target:
+                    entity_id: "{{ sat_entity }}"
+                  data:
+                    message: "Okay, I've sent that to your caregiver."
+                    preannounce: false
+              else:
+                - action: assist_satellite.announce
+                  continue_on_error: true
+                  target:
+                    entity_id: "{{ sat_entity }}"
+                  data:
+                    message: "I couldn't send that. Please use your phone."
+                    preannounce: false
       default:
         - action: viva_renamer.voice_alert
           data:
