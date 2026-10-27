@@ -55,14 +55,14 @@ google_pubsub:
 # Reset 15 minutes after any boot where ZHA came up healthy. Caps a physically
 # dead radio at 3 reboot attempts instead of an endless reboot loop.
 # --- VOICE INCIDENT STATE & MUTE ---
-# Tracks an active voice help incident (turns on when a help alert is published,
-# turns off on "I'm okay" or after 30 minutes).
-input_boolean:
-  vivajot_help_active:
-    name: "VivaJot Help Alert Active"
-    initial: false
-
 timer:
+  # Started when a help alert is sent, cancelled by "I'm okay". Its only job is
+  # to make the "I'm okay" reply truthful (the all-clear push always goes while
+  # it runs). 24 h matches how long the cloud lets "I'm okay" clear an alert;
+  # restore: true keeps it running across the nightly 3 AM restart.
+  vivajot_help_active:
+    duration: "24:00:00"
+    restore: true
   # "Stop" starts this; while running, the follow-up question stays silent.
   # Never cancels an alert.
   vivajot_coaching_mute:
