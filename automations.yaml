@@ -293,6 +293,13 @@
     - condition: template
       value_template: "{{ sat_entity != '' }}"
   action:
+    # Record every wake with the word that fired, so false wakes can be counted per word in the Logbook
+    - action: logbook.log
+      continue_on_error: true
+      data:
+        name: "VivaJot wake"
+        message: "{{ trigger.event.data.wake_word | default('?', true) }} on {{ speaker_name }}"
+        entity_id: "{{ sat_entity }}"
     # Wait for the satellite to enter the listening/processing pipeline, then wait for it to return to idle
     - wait_template: "{{ states(sat_entity) != 'idle' }}"
       timeout: "00:00:02"
