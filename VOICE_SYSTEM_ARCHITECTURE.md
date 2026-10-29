@@ -45,32 +45,31 @@ in [wakewords/README.md](wakewords/README.md) and
 ## 1. The speaker (ESPHome firmware)
 
 Hardware: Home Assistant Voice Preview Edition (ESP32-S3). Firmware is a VivaJot fork of
-the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.10.22.6**.
+the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.10.28.1**.
 
 **Privacy model.** Wake-word detection is 100 % on-device (microWakeWord). No audio leaves
 the room until a wake word fires — required for health-facility deployments. Only after a
-wake does the speaker stream the following utterance to the hub for STT.
+wake does the speaker send audio to the hub, and only while the hub is asking its question.
 
 **Wake-word models** (shipped in firmware, trained per the wakewords README):
 
 | Model | Purpose | Probability cutoff |
 |---|---|---|
-| `help_help` ("Help Help") | Emergency word, default-enabled (listed first) | 0.8 |
-| `vivajot` ("VivaJot") | Assistant word, enabled by `on_boot` | 0.7 |
-| `vivajot_help` ("VivaJot Help") | Trained but **not used** (decided against: "VivaJot" + spoken "help" covers it) | — |
-| `stop` (stock) | Interrupts TTS playback locally | stock |
+| `vivajot` ("VivaJot") | The only wake word (listed first, so enabled by default) | 0.80 (window 5) |
+| `stop` (stock) | Interrupts TTS playback locally, enabled only during announcements | stock |
 
-Only the first-listed model is enabled by default in the ESPHome component; the others are
-enabled with `micro_wake_word.enable_model` in `on_boot`. Cutoffs were raised from the 0.6
-default after false wakes ("peld peld", "you need to stop" → 0.78–1.00). Cutoffs cannot fix
-a model that scores garbage phrases ≥ its cutoff — that requires retraining with more
-samples (open backlog item).
+Retired (files kept in `wakewords/`, not in firmware): `help_help` (quiet but missed 16% of
+clean synthetic clips), `vivajot_help` (never used), `somebody_help` (hears well but
+false-wakes 7×/h on conversation). The measurements and the decision are in
+[VOICE_HELP_WORKFLOW.md](VOICE_HELP_WORKFLOW.md). The deployed `vivajot` model is itself the
+main false-wake source (9/h on dinner-party audio at 0.75); the fix is one properly trained
+model for the whole fleet, never per-house training.
 
 **Firmware behaviors added for VivaJot:**
-- Every wake fires a Home Assistant event `esphome.vivajot_wake_word` with `wake_word` and
-  `device_name` — the hub's STT-independent safety net keys on this (see §2).
-- A wake during an announcement stops playback (`media_player.stop`, 200 ms delay) and
-  starts listening: a wake word must always be heard, never talked over.
+- Every wake fires a Home Assistant event `esphome.vivajot_wake_word` with `wake_word`,
+  `device_name` and `ask: "true"`. The speaker plays its chime and does **not** start a local
+  command listen; the hub asks "Do you need help?" at once (see §2).
+- A wake during an announcement stops playback; the hub's question follows from the event.
 - A 120 s watchdog restarts microWakeWord if the voice assistant pipeline wedges
   (fixes the "speaker goes permanently deaf after an error" failure).
 
@@ -99,50 +98,44 @@ state.
 ### Shared timers — `configuration.yaml`
 | Timer | Duration | Meaning |
 |---|---|---|
-| `timer.vivajot_alert_cooldown` | 1 m 30 s | "A help incident is being handled." Suppresses duplicate alerts from both the conversation path and the wake-word safety net. |
-| `timer.vivajot_coaching_mute` | 10 m | Started by "stop"/"shut up". Coaching questions and reminders stay silent while running. **Never cancels an alert.** |
+| `timer.vivajot_help_active` | 24 h, `restore: true` | "A help alert is active." Started by every successful help send, cancelled by the all-clear. Selects which question is asked and keeps the "told your caregiver" line truthful. Survives the 3 AM restart. |
 
-### Voice UX doctrine (as currently implemented)
-1. A wake word always makes the speaker listen (chime), never lecture.
-2. Occasional scheduled announcements are fine, but scheduled speech **yields**: coaching
-   never speaks while the satellite is busy or while the mute timer runs.
-3. A help request is **confirmed before alerting** ("Do you need help?").
-4. Residents are untrained 85-year-olds: matching is class-based, not phrase lists. A
-   cancel is negation/okay words with **no** danger words (regex in the confirm automation);
-   anything ambiguous falls through to the alert.
-5. Fail-safe default: **yes, unclear speech, or silence → alert. Only a clear "no" cancels.**
-6. "Stop" (and "shut up", etc.) silences coaching for 10 minutes; it never cancels an alert.
-7. Only "I'm okay" (and variants) clears an active incident.
+### Voice UX doctrine (as built, v4, 2026-10-28)
+1. One wake word, "VivaJot". The question comes straight after the chime; the speaker never
+   listens for a free-form command first.
+2. Nothing is sent without a yes. Not from a wake alone, not from silence, not when
+   speech-to-text is down.
+3. False wakes are a first-class failure, equal to misses: an annoying speaker gets
+   unplugged, and an unplugged speaker misses everything.
+4. Residents never have to guess the words: the question says "yes or no", and dozens of
+   ways to say each are accepted. A bare "okay" is ambiguous and gets the question once more.
+5. Every spoken line is literally true and is only said after the send succeeded.
+6. "Stop" means be quiet, anywhere, any time; it never cancels an alert.
+7. The all-clear ("no" / "I'm okay" to "Do you still need help?") marks the incident Safe
+   and tells the caregiver.
 
 ### The automations (`automations.yaml`)
 
-**`vivajot_voice_help`** — conversation trigger on ~27 help phrases ("help", "I fell",
-"call 911", …). Starts the cooldown (marks the incident as claimed) and fires the
-`vivajot_confirm_help` event. No alert yet.
+**`vivajot_voice_wake_event`** — on `esphome.vivajot_wake_word`: writes a Logbook line
+("VivaJot wake: vivajot on <speaker>") so false wakes can be counted per word, then fires
+`vivajot_confirm_help`. With `ask: true` (firmware 26.10.28.1+) immediately; with older
+firmware it waits for the speaker's own listen to finish and asks only if the conversation
+handler did not take the speech.
 
-**`vivajot_voice_help_confirm`** — `assist_satellite.ask_question`: *"Do you need help?
-Please say yes or no."* Explicit no / cancel-class answer → "Okay, no alert sent."
-Everything else (yes, danger words, gibberish, **silence**) → `viva_renamer.voice_alert`
-(intent `help`), spoken reassurance ("Help is on the way…"), then fires coaching.
+**`vivajot_voice_help_confirm`** — the whole conversation. No alert active: *"Do you need
+help? Yes or no."* → yes: `viva_renamer.voice_alert` (intent `help`), then "I've notified
+your caregiver. Stay where you are."; no: "Okay."; stop: silence; unclear: asked once more,
+then silence. Alert active: *"Your caregiver has been notified. Do you still need help? Yes
+or no."* → no / okay class: intent `okay` with `notify: true`, "Okay, I've told your
+caregiver you're okay."; yes: *"Tell me what's wrong."*, their words sent with intent
+`help`, "Okay, I've sent that to your caregiver." Every send failure is spoken ("…Please use
+your phone."). Answer lists (≈70 yes, ≈35 no, 12 stop) are sentence templates in the
+automation's variables.
 
-**`vivajot_voice_fall_coaching`** — 12 s later (if not muted and satellite idle):
-*"Are you hurt or in pain?"* Each outcome publishes a follow-up alert (intent `help`,
-details prefixed "Help follow-up: …" — hurt / not hurt / verbatim reply / no response),
-then a 30 s calming reminder (also yields to mute/busy). `mode: single, max_exceeded:
-silent` so re-triggers can't stack sessions.
-
-**`vivajot_voice_help_wake_event`** — the STT-independent safety net. Fires on
-`esphome.vivajot_wake_word` when the wake word contains "help". Waits 12 s; if the
-cooldown is still idle (meaning the conversation path never claimed the incident — STT
-down or no speech followed), it alerts unconditionally. *This is the path behind false
-"Help Help" wakes auto-sending help — see Known issues.*
-
-**`vivajot_voice_stop`** — "stop", "shut up", "be quiet", … → starts the 10-minute mute,
-replies "Okay."
-
-**`vivajot_voice_okay`** — "I'm okay/fine/safe/all good/false alarm" → starts the cooldown
-(resolves in-flight flows), replies, and publishes intent `okay` (which marks the help row
-Safe in BigQuery — see §4).
+**`vivajot_voice_conversation`** — catch-all `{utterance}` conversation trigger, a safety
+net for older firmware or speech that still reaches the pipeline: stop → "Okay."; okay class
+→ the all-clear; anything else → the question (with the words heard attached to the alert).
+Nothing ever falls through to Home Assistant's built-in intents.
 
 ### Multi-apartment hubs
 Device names may carry an `@APT` tag; `viva_renamer` resolves the speaker's device name to
@@ -259,19 +252,14 @@ Log renders the same list in time order and is unaffected by pinning.
 
 ---
 
-## 8. Known issues and open design items (2026-10-23)
+## 8. Known issues and open design items (2026-10-28)
 
-1. **False wakes auto-send help (ACTIVE, highest priority).** A false "Help Help" wake with
-   no following speech leaves the cooldown idle, so `vivajot_voice_help_wake_event` alerts
-   unconditionally after 12 s — by design (fail-safe for a resident who can only gasp the
-   wake word), but false wakes make it fire erroneously.
-   **Approved redesign (2026-10-25, not yet implemented):** see the TO-BE build spec in
-   [VOICE_HELP_WORKFLOW.md](VOICE_HELP_WORKFLOW.md). In short: no alert is ever sent
-   without the resident saying yes (the wake-only safety net no longer alerts); every
-   spoken line is literally true (the hub only knows it sent an alert to the caregiver's
-   app); the speaker talks plainly ("I'm here. Do you need help?") and accepts natural
-   answers instead of keyword-spotting free speech; "stop" always means be quiet; and the
-   cloud keeps one emergency as one incident row.
+1. **False wakes (ACTIVE).** Fixed on the alert side: nothing is sent without a yes (v4,
+   2026-10-28). Still open on the wake side: the deployed `vivajot` model false-wakes ~9/h
+   on dinner-party audio at 0.75 (8/h at the shipped 0.80). Each false wake costs one
+   question and one retry. Next step is a properly trained VivaJot model for the whole fleet
+   (see the measurements in [VOICE_HELP_WORKFLOW.md](VOICE_HELP_WORKFLOW.md)); the Logbook
+   wake lines give the real per-room counts to judge it by.
 2. **"Unknown intent HassLawnMowerDock" spoken to a resident.** When speech matches none of
    our conversation triggers, it falls through to HA's default conversation agent, which
    matches against the built-in intents library — including lawn-mower sentences
@@ -285,8 +273,8 @@ Log renders the same list in time order and is unaffected by pinning.
 4. **Hero-pin edge case**: `is_open_help` flags only the *newest* help row; if a caregiver
    marks the newest Safe while an older help row is still open, the older one isn't pinned.
    One-line fix (make the subquery pick the newest *untriaged* help row).
-5. **Wake-word robustness**: cutoffs 0.7/0.8 reduce but don't eliminate false wakes
-   ("need to stop" scores up to 1.00 on `vivajot`). Real fix is retraining with more
-   samples/variants — see [wakewords/README.md](wakewords/README.md).
+5. **Wake-word robustness**: see item 1. Cutoffs move the trade-off, they don't fix the
+   model; the training recipe (18 synthetic voices, thin negatives, no sound-alike phrases,
+   empty AudioSet download) is the root cause. Never per-house training.
 6. **Per-room targeting**: the wake-event safety net passes `device_id: ""`, so coaching
    falls back to the first satellite; multi-speaker apartments need device resolution.

@@ -165,14 +165,15 @@
              | selectattr('state', 'eq', 'off')
              | map(attribute='entity_id') | list }}
 
-# --- VOICE SPEAKER: CATCH-ALL CONVERSATION HANDLER ---
-# Classifies all speech after a wake word so nothing ever falls through to Home
-# Assistant's built-in intents. Three outcomes only: the all-clear ("I'm okay"
-# class), stop, or the "Do you need help?" question. Nothing a resident says is
-# ever forwarded in the background or silently dropped.
+# --- VOICE SPEAKER: CATCH-ALL CONVERSATION HANDLER (safety net) ---
+# Firmware 26.10.28.1+ no longer listens for a command after "VivaJot"; the hub
+# asks "Do you need help?" straight away (see the wake handler below). This
+# handler only runs on older firmware, or if speech still reaches the pipeline.
+# Three outcomes: stop, the all-clear ("I'm okay" class), or the question.
+# Nothing a resident says is ever forwarded in the background or dropped.
 - id: "vivajot_voice_conversation"
   alias: "VivaJot Voice - Conversation Handler"
-  description: "Classifies all post-wake speech: all-clear, stop, or the help question"
+  description: "Routes any post-wake speech to stop, the all-clear, or the help question"
   mode: restart
   trigger:
     - trigger: conversation
@@ -192,31 +193,18 @@
            "that's enough", 'that is enough', 'enough', 'leave me alone', 'no more'
          ] }}
     # The okay class, one definition used everywhere: a statement that they are
-    # okay ("I'm okay", "no I'm fine", "I am all right now", "all good", "false
-    # alarm", "never mind"). A bare "okay" or "no" is NOT in it (ambiguous).
+    # okay. A bare "okay" or "no" is NOT in it (ambiguous).
     is_okay: >
-      {{ utterance_norm is search("^(no )?(i'?m|i am) (doing )?(okay|ok|fine|alright|all right|good|all good|safe)( now)?$")
-         or utterance_norm is search("^(no )?(all good|false alarm|never ?mind)$")
+      {{ utterance_norm is search("^(no )?(i'?m|i am) (doing |feeling )?(okay|ok|fine|alright|all right|good|all good|safe|better)( now)?$")
+         or utterance_norm is search("^(no )?(all good|false alarm|never ?mind|forget it|i'?m good)$")
          or utterance_norm is search("^everything('?s| is) (okay|ok|fine|alright)$")
          or utterance_norm is search("^tell my family (i'?m|i am) (okay|ok|fine)$") }}
-    is_help: >
-      {{ utterance_norm in [
-           'help', 'help help', 'help me', 'help me please', 'please help', 'please help me',
-           'i need help', 'i need some help', 'somebody help', 'somebody help me',
-           'i fell', 'i fell down', 'i have fallen', "i've fallen", 'i just fell',
-           'i cannot get up', "i can't get up", 'i am hurt', "i'm hurt", 'i hurt myself',
-           'call my family', 'call for help', 'can you help me', 'call 911', 'get help',
-           'emergency', 'send help'
-         ] }}
     help_active: "{{ is_state('timer.vivajot_help_active', 'active') }}"
   action:
     - choose:
         # Stop means be quiet, anywhere, any time. Never cancels an alert.
         - conditions: "{{ is_stop }}"
           sequence:
-            - action: timer.start
-              target:
-                entity_id: timer.vivajot_coaching_mute
             - set_conversation_response: "Okay."
 
         # The all-clear. While an alert is active the family is told (notify);
@@ -248,40 +236,31 @@
               else:
                 - set_conversation_response: "I couldn't send that. Please use your phone."
 
-        # A request for help ("VivaJot, I fell") -> confirm before alerting
-        - conditions: "{{ is_help }}"
-          sequence:
-            - set_conversation_response: ""
-            - event: vivajot_confirm_help
-              event_data:
-                device_id: "{{ trigger.device_id | default('', true) }}"
-                heard: "{{ utterance_raw }}"
-                opening_question: "I heard you need help. Should I alert your caregiver?"
-
-      # Anything else ("what time is it", "I can't breathe", a mumble) -> the question.
-      # Active alert or not: the speaker cannot know whether a caregiver already
-      # resolved it, so it always asks rather than ever dropping speech.
+      # Anything else ("I fell", "what time is it", a mumble) -> the question.
+      # The words heard are kept and sent with the alert if they say yes.
       default:
         - set_conversation_response: ""
         - event: vivajot_confirm_help
           event_data:
             device_id: "{{ trigger.device_id | default('', true) }}"
             heard: "{{ utterance_raw }}"
-            opening_question: "I'm here. Do you need help?"
 
-# --- VOICE SPEAKER: WAKE WORD "SAID NOTHING" HANDLER ---
-# Once the satellite returns to idle after a wake word with no conversation,
-# asks "I'm here. Do you need help?". Always, alert active or not: a silent
-# wake must never be ignored. Never alerts on its own.
+# --- VOICE SPEAKER: WAKE WORD HANDLER ---
+# Every "VivaJot" wake is logged with the word that fired, then the question is
+# asked. Firmware 26.10.28.1+ sends ask: true and does not start its own listen,
+# so the question comes straight after the chime. Older firmware listens for a
+# command first; then the hub waits for the speaker to go idle and asks only if
+# the conversation handler did not already take the speech.
 - id: "vivajot_voice_wake_event"
-  alias: "VivaJot Voice - Wake Word Idle Handler"
-  description: "Asks if the resident needs help when a wake word is followed by silence"
+  alias: "VivaJot Voice - Wake Word Handler"
+  description: "Logs the wake word and asks whether the resident needs help"
   mode: restart
   trigger:
     - trigger: event
       event_type: esphome.vivajot_wake_word
   variables:
     speaker_name: "{{ trigger.event.data.device_name | default('', true) }}"
+    ask_now: "{{ trigger.event.data.ask | default(false, true) | bool }}"
     sat_entity: >
       {% set sats = states.assist_satellite | map(attribute='entity_id') | list %}
       {% set match = sats | select('search', speaker_name | replace('-', '_')) | list %}
@@ -300,30 +279,39 @@
         name: "VivaJot wake"
         message: "{{ trigger.event.data.wake_word | default('?', true) }} on {{ speaker_name }}"
         entity_id: "{{ sat_entity }}"
-    # Wait for the satellite to enter the listening/processing pipeline, then wait for it to return to idle
-    - wait_template: "{{ states(sat_entity) != 'idle' }}"
-      timeout: "00:00:02"
-    - wait_template: "{{ states(sat_entity) == 'idle' }}"
-      timeout: "00:00:15"
-    - delay: "00:00:00.500"
-    # Only ask if no conversation matched and a confirmation is not already running
-    - condition: template
-      value_template: >
-        {{ (state_attr('automation.vivajot_voice_conversation', 'last_triggered') | string) == conv_last_triggered
-           and (state_attr('automation.vivajot_voice_help_confirm', 'last_triggered') | string) == confirm_last_triggered
-           and (state_attr('automation.vivajot_voice_help_confirm', 'current') | int(0)) == 0 }}
+    - if:
+        - condition: template
+          value_template: "{{ not ask_now }}"
+      then:
+        # Older firmware: let its own listen finish first
+        - wait_template: "{{ states(sat_entity) != 'idle' }}"
+          timeout: "00:00:02"
+        - wait_template: "{{ states(sat_entity) == 'idle' }}"
+          timeout: "00:00:15"
+        - delay: "00:00:00.500"
+        - condition: template
+          value_template: >
+            {{ (state_attr('automation.vivajot_voice_conversation', 'last_triggered') | string) == conv_last_triggered
+               and (state_attr('automation.vivajot_voice_help_confirm', 'last_triggered') | string) == confirm_last_triggered
+               and (state_attr('automation.vivajot_voice_help_confirm', 'current') | int(0)) == 0 }}
     - event: vivajot_confirm_help
       event_data:
         device_id: "{{ resolved_device_id }}"
         heard: ""
-        opening_question: "I'm here. Do you need help?"
 
-# --- VOICE SPEAKER: HELP CONFIRMATION & ALERT ---
-# Never sends an alert without a yes. Asks once more if unclear or silent.
-# Branches the spoken confirmation on whether the Pub/Sub publish succeeded.
+# --- VOICE SPEAKER: THE QUESTION ---
+# One yes/no question, asked once more if unclear. Nothing is sent without a yes.
+# No alert active:  "Do you need help? Yes or no."
+#    yes -> alert -> "I've notified your caregiver. Stay where you are."
+#    no  -> "Okay."     stop -> silent     unclear twice -> silent, nothing sent
+# Alert active:     "Your caregiver has been notified. Do you still need help? Yes or no."
+#    no  -> all-clear -> "Okay, I've told your caregiver you're okay."
+#    yes -> "Tell me what's wrong." -> their words go to the caregiver
+#           -> "Okay, I've sent that to your caregiver."
+# Every spoken line is only said after the send actually succeeded.
 - id: "vivajot_voice_help_confirm"
   alias: "VivaJot Voice - Help Confirmation"
-  description: "Asks if resident needs help, re-asks once if unclear, and alerts only on yes"
+  description: "Asks the yes/no help question, re-asks once if unclear, alerts only on yes"
   mode: restart
   trigger:
     - trigger: event
@@ -333,13 +321,125 @@
       {% set dev = trigger.event.data.device_id | default('', true) %}
       {% set dev_sats = device_entities(dev) | select('match', '^assist_satellite\.') | list if dev else [] %}
       {{ dev_sats[0] if dev_sats | count > 0 else (states.assist_satellite | map(attribute='entity_id') | first | default('', true)) }}
-    opening_question: "{{ trigger.event.data.opening_question | default(\"I'm here. Do you need help?\", true) }}"
+    device_id_in: "{{ trigger.event.data.device_id | default('', true) }}"
     initial_heard: "{{ (trigger.event.data.heard | default('', true) | string).strip() }}"
-    # Was an incident already active before this question? Then a yes re-pushes
-    # the same incident and the follow-up question is not asked again.
-    pre_active: "{{ is_state('timer.vivajot_help_active', 'active') }}"
-    stop_words:
+    help_active: "{{ is_state('timer.vivajot_help_active', 'active') }}"
+    question_1: >
+      {{ 'Your caregiver has been notified. Do you still need help? Yes or no.'
+         if help_active else 'Do you need help? Yes or no.' }}
+    question_2: >
+      {{ "Sorry, I didn't catch that. Do you still need help? Yes or no."
+         if help_active else "Sorry, I didn't catch that. Do you need help? Yes or no." }}
+    # Answer lists (sentence-template syntax: [optional], (a|b), {wildcard}).
+    # Lots of ways to say yes and no, because residents must never have to guess
+    # the exact words. "yes {extra}" accepts anything that starts with yes.
+    # A bare "okay" is NOT an answer (ambiguous) and gets the question once more.
+    yes_answers:
+      - "yes"
+      - "yeah"
+      - "yep"
+      - "yup"
+      - "ya"
+      - "yah"
+      - "yes please"
+      - "please"
+      - "uh huh"
+      - "mm hmm"
+      - "mhm"
+      - "sure"
+      - "okay yes"
+      - "ok yes"
+      - "i do"
+      - "yes i do"
+      - "i think so"
+      - "i guess so"
+      - "i need help"
+      - "i need some help"
+      - "i need your help"
+      - "yes i need help"
+      - "no i need help"
+      - "no i fell"
+      - "no i fell down"
+      - "no i can't get up"
+      - "help"
+      - "help me"
+      - "help me please"
+      - "please help"
+      - "please help me"
+      - "somebody help"
+      - "somebody help me"
+      - "send help"
+      - "send someone"
+      - "get help"
+      - "get someone"
+      - "call for help"
+      - "call someone"
+      - "call somebody"
+      - "call my family"
+      - "call my daughter"
+      - "call my son"
+      - "call the nurse"
+      - "i fell"
+      - "i fell down"
+      - "i have fallen"
+      - "i've fallen"
+      - "i just fell"
+      - "i can't get up"
+      - "i cannot get up"
+      - "i can't move"
+      - "i'm hurt"
+      - "i am hurt"
+      - "i'm bleeding"
+      - "i can't breathe"
+      - "i'm not okay"
+      - "i am not okay"
+      - "i'm not fine"
+      - "i'm not feeling well"
+      - "i don't feel well"
+      - "i feel sick"
+      - "i'm sick"
+      - "i'm dizzy"
+      - "i'm in pain"
+      - "emergency"
+      - "it's an emergency"
+      - "yes {extra}"
+      - "yeah {extra}"
+      - "yep {extra}"
+      - "help {extra}"
+    no_answers:
+      - "no"
+      - "nope"
+      - "nah"
+      - "no thanks"
+      - "no thank you"
+      - "no i don't"
+      - "no i do not"
+      - "no i'm not"
+      - "not now"
+      - "no help"
+      - "no need"
+      - "i don't need help"
+      - "i do not need help"
+      - "i don't need any help"
+      - "i don't need anything"
+      - "i'm just testing"
+      - "just testing"
+      - "testing"
+      - "cancel"
+      - "cancel that"
+      - "cancel the request"
+      - "that's okay"
+      - "that's fine"
+      - "it's okay"
+      - "it's fine"
+      - "[no] (i'm|i am) [doing|feeling] (okay|ok|fine|alright|all right|good|all good|safe|better) [now]"
+      - "[no] (all good|false alarm|never mind|nevermind|forget it|i'm good)"
+      - "everything is (okay|ok|fine|alright)"
+      - "everything's (okay|ok|fine|alright)"
+      - "no (i'm|i am) (okay|ok|fine|alright|good) [thank you|thanks]"
+    stop_answers:
       - "stop"
+      - "[vivajot] stop"
       - "shut up"
       - "be quiet"
       - "quiet"
@@ -350,85 +450,71 @@
       - "enough"
       - "leave me alone"
       - "no more"
-    # Answer lists for both asks (sentence-template syntax: [optional], (a|b)).
-    # "yes {extra}" accepts any answer that starts with yes. The no list requires
-    # "I'm"/"I am" before okay/fine/... so a bare "okay" stays ambiguous.
-    yes_answers:
-      - "yes"
-      - "yeah"
-      - "yep"
-      - "please"
-      - "yes please"
-      - "help"
-      - "help me"
-      - "help help"
-      - "i need help"
-      - "please help"
-      - "please help me"
-      - "i fell"
-      - "i fell down"
-      - "i have fallen"
-      - "i've fallen"
-      - "i can't get up"
-      - "i cannot get up"
-      - "no i need help"
-      - "no please help"
-      - "yes {extra}"
-      - "yeah {extra}"
-      - "yep {extra}"
-    no_answers:
-      - "no"
-      - "nope"
-      - "no thank you"
-      - "no thanks"
-      - "no i don't"
-      - "no i do not"
-      - "i don't need help"
-      - "i do not need help"
-      - "[no] (i'm|i am) [doing] (okay|ok|fine|alright|all right|good|all good|safe) [now]"
-      - "[no] (all good|false alarm|never mind|nevermind)"
-      - "everything is (okay|ok|fine|alright)"
   condition:
     - condition: template
       value_template: "{{ sat_entity != '' }}"
   action:
-    - action: timer.cancel
-      target:
-        entity_id: timer.vivajot_coaching_mute
-    - delay: "00:00:01"
+    - delay: "00:00:00.500"
     - action: assist_satellite.ask_question
       continue_on_error: true
       target:
         entity_id: "{{ sat_entity }}"
       data:
-        question: "{{ opening_question }}"
+        question: "{{ question_1 }}"
         preannounce: false
         answers:
           - id: "yes"
             sentences: "{{ yes_answers }}"
           - id: "no"
             sentences: "{{ no_answers }}"
+          - id: "stop"
+            sentences: "{{ stop_answers }}"
       response_variable: ans1
     - variables:
-        s1_raw: "{{ (ans1.sentence | default('', true) | string).strip() if ans1 is defined and ans1 is mapping else '' }}"
         id1: "{{ (ans1.id | default('', true)) if ans1 is defined and ans1 is mapping else '' }}"
-        ans1_yes: "{{ id1 == 'yes' }}"
-        ans1_no: "{{ id1 == 'no' }}"
-        s1_norm: >
-          {{ s1_raw | lower
-             | regex_replace("[^a-z0-9' ]", " ")
-             | regex_replace("\\s+", " ")
-             | trim
-             | regex_replace("^viva ?jot ", "") }}
-        ans1_stop: "{{ s1_norm in stop_words }}"
-        ans1_heard: "{{ ans1 is defined and ans1 is mapping }}"
+        raw1: "{{ (ans1.sentence | default('', true) | string).strip() if ans1 is defined and ans1 is mapping else '' }}"
+        heard1: "{{ ans1 is defined and ans1 is mapping }}"
+        clear1: "{{ id1 in ['yes', 'no', 'stop'] }}"
+    # Unclear or silent the first time: ask once more
+    - if:
+        - condition: template
+          value_template: "{{ not clear1 }}"
+      then:
+        - action: assist_satellite.ask_question
+          continue_on_error: true
+          target:
+            entity_id: "{{ sat_entity }}"
+          data:
+            question: "{{ question_2 }}"
+            preannounce: false
+            answers:
+              - id: "yes"
+                sentences: "{{ yes_answers }}"
+              - id: "no"
+                sentences: "{{ no_answers }}"
+              - id: "stop"
+                sentences: "{{ stop_answers }}"
+          response_variable: ans2
+        - variables:
+            id2: "{{ (ans2.id | default('', true)) if ans2 is defined and ans2 is mapping else '' }}"
+            raw2: "{{ (ans2.sentence | default('', true) | string).strip() if ans2 is defined and ans2 is mapping else '' }}"
+            heard2: "{{ ans2 is defined and ans2 is mapping }}"
+            final_id: "{{ id2 }}"
+            final_raw: "{{ raw2 }}"
+            any_heard: "{{ heard1 or heard2 }}"
+      else:
+        - variables:
+            final_id: "{{ id1 }}"
+            final_raw: "{{ raw1 }}"
+            any_heard: "{{ heard1 }}"
     - choose:
-        # Stop (with or without "VivaJot"): say Okay, ask nothing more.
-        - conditions: "{{ ans1_stop }}"
+        # Stop: be quiet. Nothing else happens.
+        - conditions: "{{ final_id == 'stop' }}"
+          sequence: []
+
+        # ----- No alert active -----
+        - conditions: "{{ not help_active and final_id == 'no' }}"
           sequence:
-            - action: timer.start
-              target:
-                entity_id: timer.vivajot_coaching_mute
             - action: assist_satellite.announce
               continue_on_error: true
               target:
@@ -436,56 +522,35 @@
               data:
                 message: "Okay."
                 preannounce: false
-        # First ask: clear No
-        - conditions: "{{ ans1_no }}"
-          sequence:
-            - action: assist_satellite.announce
-              continue_on_error: true
-              target:
-                entity_id: "{{ sat_entity }}"
-              data:
-                message: "Okay, I won't send anything."
-                preannounce: false
 
-        # First ask: clear Yes -> Alert
-        - conditions: "{{ ans1_yes }}"
+        - conditions: "{{ not help_active and final_id == 'yes' }}"
           sequence:
             - variables:
                 alert_words: >
-                  {{ initial_heard ~ ' (' ~ s1_raw ~ ')'
-                     if initial_heard != '' and s1_raw != '' and (initial_heard | lower) != (s1_raw | lower)
-                     else (initial_heard if initial_heard != '' else (s1_raw if s1_raw != '' else 'yes')) }}
+                  {{ initial_heard ~ ' (' ~ final_raw ~ ')'
+                     if initial_heard != '' and final_raw != '' and (initial_heard | lower) != (final_raw | lower)
+                     else (initial_heard if initial_heard != '' else (final_raw if final_raw != '' else 'yes')) }}
             - action: viva_renamer.voice_alert
               continue_on_error: true
               data:
                 intent: "help"
-                device_id: "{{ trigger.event.data.device_id | default('', true) }}"
+                device_id: "{{ device_id_in }}"
                 details: "{{ alert_words }}"
-              response_variable: pub1
+              response_variable: pub_help
             - if:
                 - condition: template
-                  value_template: "{{ pub1 is defined and pub1 is mapping and pub1.get('published') == true }}"
+                  value_template: "{{ pub_help is defined and pub_help is mapping and pub_help.get('published') == true }}"
               then:
                 - action: timer.start
                   target:
                     entity_id: timer.vivajot_help_active
-                - action: timer.cancel
-                  target:
-                    entity_id: timer.vivajot_coaching_mute
                 - action: assist_satellite.announce
                   continue_on_error: true
                   target:
                     entity_id: "{{ sat_entity }}"
                   data:
-                    message: "I've sent your caregiver an alert. Stay where you are."
+                    message: "I've notified your caregiver. Stay where you are."
                     preannounce: false
-                - if:
-                    - condition: template
-                      value_template: "{{ not pre_active }}"
-                  then:
-                    - event: vivajot_start_fall_coaching
-                      event_data:
-                        device_id: "{{ trigger.event.data.device_id | default('', true) }}"
               else:
                 - action: assist_satellite.announce
                   continue_on_error: true
@@ -495,225 +560,21 @@
                     message: "I couldn't send the alert. Please use your phone."
                     preannounce: false
 
-      # First ask was unclear or silent -> Ask once more, unless they said stop
-      default:
-        - condition: state
-          entity_id: timer.vivajot_coaching_mute
-          state: idle
-        - action: assist_satellite.ask_question
-          continue_on_error: true
-          target:
-            entity_id: "{{ sat_entity }}"
-          data:
-            question: "Sorry, I didn't catch that. Do you need help? Just say yes or no."
-            preannounce: false
-            answers:
-              - id: "yes"
-                sentences: "{{ yes_answers }}"
-              - id: "no"
-                sentences: "{{ no_answers }}"
-          response_variable: ans2
-        - variables:
-            s2_raw: "{{ (ans2.sentence | default('', true) | string).strip() if ans2 is defined and ans2 is mapping else '' }}"
-            id2: "{{ (ans2.id | default('', true)) if ans2 is defined and ans2 is mapping else '' }}"
-            ans2_yes: "{{ id2 == 'yes' }}"
-            ans2_no: "{{ id2 == 'no' }}"
-            s2_norm: >
-              {{ s2_raw | lower
-                 | regex_replace("[^a-z0-9' ]", " ")
-                 | regex_replace("\\s+", " ")
-                 | trim
-                 | regex_replace("^viva ?jot ", "") }}
-            ans2_stop: "{{ s2_norm in stop_words }}"
-            ans2_heard: "{{ ans2 is defined and ans2 is mapping }}"
-        - choose:
-            # Stop (with or without "VivaJot"): say Okay, ask nothing more.
-            - conditions: "{{ ans2_stop }}"
-              sequence:
-                - action: timer.start
-                  target:
-                    entity_id: timer.vivajot_coaching_mute
-                - action: assist_satellite.announce
-                  continue_on_error: true
-                  target:
-                    entity_id: "{{ sat_entity }}"
-                  data:
-                    message: "Okay."
-                    preannounce: false
-            # Second ask: clear No
-            - conditions: "{{ ans2_no }}"
-              sequence:
-                - action: assist_satellite.announce
-                  continue_on_error: true
-                  target:
-                    entity_id: "{{ sat_entity }}"
-                  data:
-                    message: "Okay, I won't send anything."
-                    preannounce: false
-
-            # Second ask: clear Yes -> Alert
-            - conditions: "{{ ans2_yes }}"
-              sequence:
-                - variables:
-                    alert_words2: >
-                      {{ initial_heard ~ ' (' ~ s2_raw ~ ')'
-                         if initial_heard != '' and s2_raw != '' and (initial_heard | lower) != (s2_raw | lower)
-                         else (initial_heard if initial_heard != '' else (s2_raw if s2_raw != '' else 'yes')) }}
-                - action: viva_renamer.voice_alert
-                  continue_on_error: true
-                  data:
-                    intent: "help"
-                    device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                    details: "{{ alert_words2 }}"
-                  response_variable: pub2
-                - if:
-                    - condition: template
-                      value_template: "{{ pub2 is defined and pub2 is mapping and pub2.get('published') == true }}"
-                  then:
-                    - action: timer.start
-                      target:
-                        entity_id: timer.vivajot_help_active
-                    - action: timer.cancel
-                      target:
-                        entity_id: timer.vivajot_coaching_mute
-                    - action: assist_satellite.announce
-                      continue_on_error: true
-                      target:
-                        entity_id: "{{ sat_entity }}"
-                      data:
-                        message: "I've sent your caregiver an alert. Stay where you are."
-                        preannounce: false
-                    - if:
-                        - condition: template
-                          value_template: "{{ not pre_active }}"
-                      then:
-                        - event: vivajot_start_fall_coaching
-                          event_data:
-                            device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                  else:
-                    - action: assist_satellite.announce
-                      continue_on_error: true
-                      target:
-                        entity_id: "{{ sat_entity }}"
-                      data:
-                        message: "I couldn't send the alert. Please use your phone."
-                        preannounce: false
-          # Unclear again. If they spoke, say plainly that nothing was sent, so no
-          # one believes an alert went out. If the speaker could not listen at all
-          # (both asks errored, e.g. speech-to-text down), say that. Silence stays
-          # silent.
-          default:
-            - choose:
-                - conditions: "{{ s2_raw != '' }}"
-                  sequence:
-                    - action: assist_satellite.announce
-                      continue_on_error: true
-                      target:
-                        entity_id: "{{ sat_entity }}"
-                      data:
-                        message: "I didn't send an alert. If you need help, say VivaJot, help."
-                        preannounce: false
-                - conditions: "{{ not ans1_heard and not ans2_heard }}"
-                  sequence:
-                    - action: assist_satellite.announce
-                      continue_on_error: true
-                      target:
-                        entity_id: "{{ sat_entity }}"
-                      data:
-                        message: "I can't hear you right now. If you need help, please use your phone."
-                        preannounce: false
-
-# --- VOICE SPEAKER: FOLLOW-UP CHECK-IN ---
-# About 10 seconds after a NEW alert, unless they said stop: "Are you hurt?"
-# The answer is added to the same alert and pushed with the resident's words.
-# An okay-class answer ("I'm okay", "no I'm fine") is the all-clear, exactly
-# as if said on its own. A bare "no" is only an answer.
-- id: "vivajot_voice_fall_coaching"
-  alias: "VivaJot Voice - Follow-Up Check-In"
-  description: "Asks 'Are you hurt?' once about 10s after an alert and forwards the resident's answer"
-  mode: single
-  max_exceeded: silent
-  trigger:
-    - trigger: event
-      event_type: vivajot_start_fall_coaching
-  variables:
-    sat_entity: >
-      {% set dev = trigger.event.data.device_id | default('', true) %}
-      {% set dev_sats = device_entities(dev) | select('match', '^assist_satellite\.') | list if dev else [] %}
-      {{ dev_sats[0] if dev_sats | count > 0 else (states.assist_satellite | map(attribute='entity_id') | first | default('', true)) }}
-  condition:
-    - condition: template
-      value_template: "{{ sat_entity != '' }}"
-  action:
-    - delay: "00:00:10"
-    - condition: state
-      entity_id: timer.vivajot_help_active
-      state: active
-    - condition: state
-      entity_id: timer.vivajot_coaching_mute
-      state: idle
-    - condition: template
-      value_template: "{{ states(sat_entity) == 'idle' }}"
-    - action: assist_satellite.ask_question
-      continue_on_error: true
-      target:
-        entity_id: "{{ sat_entity }}"
-      data:
-        question: "Are you hurt?"
-        preannounce: false
-        answers:
-          - id: "answered"
-            sentences:
-              - "{reply}"
-      response_variable: coaching_answer
-    - variables:
-        coaching_raw: >
-          {{ (coaching_answer.sentence | default('', true) | string).strip()
-             if coaching_answer is defined and coaching_answer is mapping and coaching_answer.sentence is not none
-             else '' }}
-        coaching_norm: >
-          {{ coaching_raw | lower
-             | regex_replace("[^a-z0-9' ]", " ")
-             | regex_replace("\\s+", " ")
-             | trim
-             | regex_replace("^viva ?jot ", "") }}
-        coaching_is_stop: >
-          {{ coaching_norm in [
-               'stop', 'shut up', 'be quiet', 'quiet', 'stop talking', 'stop it',
-               "that's enough", 'that is enough', 'enough', 'leave me alone', 'no more'
-             ] }}
-        coaching_is_okay: >
-          {{ coaching_norm is search("^(no )?(i'?m|i am) (doing )?(okay|ok|fine|alright|all right|good|all good|safe)( now)?$")
-             or coaching_norm is search("^(no )?(all good|false alarm|never ?mind)$")
-             or coaching_norm is search("^everything('?s| is) (okay|ok|fine|alright)$")
-             or coaching_norm is search("^tell my family (i'?m|i am) (okay|ok|fine)$") }}
-    - choose:
-        - conditions: "{{ coaching_is_stop }}"
-          sequence:
-            - action: timer.start
-              target:
-                entity_id: timer.vivajot_coaching_mute
-            - action: assist_satellite.announce
-              continue_on_error: true
-              target:
-                entity_id: "{{ sat_entity }}"
-              data:
-                message: "Okay."
-                preannounce: false
-        # "I'm okay" as the answer is the all-clear
-        - conditions: "{{ coaching_is_okay }}"
+        # ----- Alert already active -----
+        # No / I'm okay: the all-clear. The caregiver is told they are okay.
+        - conditions: "{{ help_active and final_id == 'no' }}"
           sequence:
             - action: viva_renamer.voice_alert
               continue_on_error: true
               data:
                 intent: "okay"
                 notify: true
-                device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "Asked 'Are you hurt?': {{ coaching_raw }}"
-              response_variable: pub_ok
+                device_id: "{{ device_id_in }}"
+                details: "{{ final_raw if final_raw != '' else 'no' }}"
+              response_variable: pub_okay
             - if:
                 - condition: template
-                  value_template: "{{ pub_ok is defined and pub_ok is mapping and pub_ok.get('published') == true }}"
+                  value_template: "{{ pub_okay is defined and pub_okay is mapping and pub_okay.get('published') == true }}"
               then:
                 - action: timer.cancel
                   target:
@@ -733,19 +594,42 @@
                   data:
                     message: "I couldn't send that. Please use your phone."
                     preannounce: false
-        - conditions: "{{ coaching_raw != '' }}"
+
+        # Yes, still needs help: take their words and send them to the caregiver.
+        - conditions: "{{ help_active and final_id == 'yes' }}"
           sequence:
+            - action: assist_satellite.ask_question
+              continue_on_error: true
+              target:
+                entity_id: "{{ sat_entity }}"
+              data:
+                question: "Tell me what's wrong."
+                preannounce: false
+                answers:
+                  - id: "said"
+                    sentences:
+                      - "{reply}"
+              response_variable: more
+            - variables:
+                more_raw: >
+                  {{ (more.sentence | default('', true) | string).strip()
+                     if more is defined and more is mapping and more.sentence is not none else '' }}
+                more_words: >
+                  {{ more_raw if more_raw != '' else ('Still needs help: ' ~ (final_raw if final_raw != '' else 'yes')) }}
             - action: viva_renamer.voice_alert
               continue_on_error: true
               data:
                 intent: "help"
-                device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-                details: "Asked 'Are you hurt?': {{ coaching_raw }}"
-              response_variable: pub_followup
+                device_id: "{{ device_id_in }}"
+                details: "{{ more_words }}"
+              response_variable: pub_more
             - if:
                 - condition: template
-                  value_template: "{{ pub_followup is defined and pub_followup is mapping and pub_followup.get('published') == true }}"
+                  value_template: "{{ pub_more is defined and pub_more is mapping and pub_more.get('published') == true }}"
               then:
+                - action: timer.start
+                  target:
+                    entity_id: timer.vivajot_help_active
                 - action: assist_satellite.announce
                   continue_on_error: true
                   target:
@@ -761,10 +645,17 @@
                   data:
                     message: "I couldn't send that. Please use your phone."
                     preannounce: false
-      default:
-        - action: viva_renamer.voice_alert
-          continue_on_error: true
-          data:
-            intent: "help"
-            device_id: "{{ trigger.event.data.device_id | default('', true) }}"
-            details: "No answer to 'Are you hurt?'"
+
+        # The speaker could not listen at all (both asks failed, e.g. speech-to-text down)
+        - conditions: "{{ not any_heard }}"
+          sequence:
+            - action: assist_satellite.announce
+              continue_on_error: true
+              target:
+                entity_id: "{{ sat_entity }}"
+              data:
+                message: "I can't hear you right now. If you need help, please use your phone."
+                preannounce: false
+
+      # Unclear twice, or silence: nothing more is said and nothing is sent.
+      default: []

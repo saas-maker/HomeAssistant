@@ -65,8 +65,6 @@ timer:
     restore: true
   # "Stop" starts this; while running, the follow-up question stays silent.
   # Never cancels an alert.
-  vivajot_coaching_mute:
-    duration: "00:10:00"
 
 counter:
   vivajot_zha_reboots:

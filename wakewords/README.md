@@ -6,8 +6,19 @@ the device until the wake word fires (important for health-facility privacy).
 
 | File | What it is |
 |------|------------|
-| `vivajot_help.tflite` | "VivaJot Help" — INT8 quantized streaming microWakeWord model (~61 KB) |
-| `vivajot_help.json`   | ESPHome model manifest for the above |
+| `vivajot.tflite` / `vivajot.json` | "VivaJot" — the ONLY wake word in firmware 26.10.28.1+ (cutoff 0.80) |
+| `help_help.*` | "Help Help" — retired 2026-10-28 (missed 16% of clean synthetic clips) |
+| `somebody_help.*` | "Somebody Help" — trained 2026-10-28, measured, NOT shipped (false-wakes 7/h on conversation) |
+| `vivajot_help.*` | "VivaJot Help" — never used |
+| `firmware/` | Built firmware images + OTA/flash manifests (what the speakers install) |
+| `firmware-config/` | The ESPHome YAML the firmware was built from |
+
+Before shipping any new model, measure it against the deployed one on the same audio
+(false accepts per hour on DipCo/CHiME/music, recall on synthetic clips) and ship only if
+it is better. The 2026-10-28 numbers are in VOICE_HELP_WORKFLOW.md. The notebook's recipe
+(18 Piper voices, stock negatives, 210 music clips, an AudioSet download that is silently
+empty) is the root cause of false wakes; the fix is one better-trained model for the whole
+fleet, never per-house training.
 
 ## Training provenance
 

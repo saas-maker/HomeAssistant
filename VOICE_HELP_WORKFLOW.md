@@ -3,8 +3,8 @@
 Companion to [VOICE_SYSTEM_ARCHITECTURE.md](VOICE_SYSTEM_ARCHITECTURE.md). This maps every
 step and branch of the help workflow **as implemented on 2026-10-23**, audits each branch
 against the design standard — *an untrained 85-year-old must always end up safe* — then
-lists every gap found and the proposed redesigned (TO-BE) flow. Analysis only; nothing
-here is implemented yet.
+lists every gap found and the redesigned flow. The AS-IS and gap sections are kept as
+history; the **v4 section at the end is what is built** (2026-10-28).
 
 Design standard, restated as testable rules:
 - R1. If the resident needs help, help is summoned — even if they can only gasp a wake word.
@@ -95,183 +95,154 @@ with a "[Cleared by the resident…]" note).
 
 ---
 
-## TO-BE: the approved conversation (build spec, revised 2026-10-27)
+## TO-BE v4: the built conversation (2026-10-28)
 
-Agreed by Cary with Claude (Fable, Opus, Sonnet) and Antigravity, then revised after the
-first live test on 2026-10-27. This is what is built in `automations.yaml`.
+Agreed by Cary after the wake-word measurements below. Built in `automations.yaml`,
+`configuration.yaml` and firmware 26.10.28.1. Supersedes the 2026-10-27 spec.
 
 ### Rules
-1. **Never send an alert without a yes.** Not from a wake word alone, not from silence,
-   not when speech-to-text is down.
-2. **Every spoken line is literally true.** After an alert the hub knows one thing:
-   whether its message was sent to the caregiver's app.
-3. **Talk like a person.** Natural questions, natural answers, one retry if unsure. No
-   menus and no keyword-spotting of free speech.
-4. **"Stop" means be quiet, anywhere, any time** (whole answer only, with or without
-   "VivaJot" in front). It never cancels an alert that was already sent.
-5. **Nothing the resident says is ever dropped or forwarded in the background.** After a
-   wake there are exactly three outcomes: the all-clear, stop, or the question.
-6. **One emergency is one incident row**, enforced in the cloud.
+1. **One wake word: "VivaJot".** The speaker listens for nothing else. "Help Help" is retired
+   (it missed 16% of clean synthetic clips) and no new emergency word is trained until a
+   model measures better than today's on the bench (see measurements).
+2. **The question comes straight after the chime.** The speaker does not listen for a
+   command first. Every wake, alert active or not, leads to one yes/no question.
+3. **Nothing is sent without a yes.** Not from a wake alone, not from silence, not when
+   speech-to-text is down.
+4. **False wakes are a first-class failure, equal to misses.** A speaker that keeps waking
+   and asking gets unplugged, and an unplugged speaker misses everything.
+5. **Residents never have to guess the words.** The question says "yes or no"; dozens of
+   ways to say each are accepted (lists below). A bare "okay" is ambiguous and gets the
+   question once more.
+6. **Every spoken line is literally true** and only said after the send succeeded.
+7. **"Stop" means be quiet**, anywhere, any time, with or without "VivaJot" in front. It
+   never cancels an alert.
 
-### The okay class (one definition, used everywhere)
-A *statement that they are okay*: `[no] (I'm | I am) [doing] (okay | ok | fine | alright |
-all right | good | all good | safe) [now]`, plus `all good`, `false alarm`, `never mind`,
-`everything is/‘s okay|fine`, `tell my family I'm okay`. A bare "okay", "fine" or "no" is
-**not** in the class (ambiguous) and neither is "not hurt" (an answer, not a stand-down).
-It is the same whether said as a command ("VivaJot, I'm okay"), as the answer to "Do you
-need help?" (= no), or as the answer to "Are you hurt?" (= the all-clear).
+### The flow
+**No alert active.** "Do you need help? Yes or no."
 
-### Spoken lines (the complete set; nothing else is spoken)
-| Moment | Line |
-|---|---|
-| Wake, nothing said yet | I'm here. Do you need help? |
-| Wake, they already asked for help ("VivaJot, I fell") | I heard you need help. Should I alert your caregiver? |
-| Didn't understand | Sorry, I didn't catch that. Do you need help? Just say yes or no. |
-| Spoke again, still not understood | I didn't send an alert. If you need help, say VivaJot, help. |
-| Could not listen at all (both asks failed, e.g. speech-to-text down) | I can't hear you right now. If you need help, please use your phone. |
-| No | Okay, I won't send anything. |
-| Alert sent | I've sent your caregiver an alert. Stay where you are. |
-| Alert failed | I couldn't send the alert. Please use your phone. |
-| Follow-up (once, after a new alert) | Are you hurt? |
-| Follow-up answer sent | Okay, I've sent that to your caregiver. |
-| Any send failed | I couldn't send that. Please use your phone. |
-| "I'm okay" while an alert is active | Okay, I've told your caregiver you're okay. |
-| "I'm okay" with no active alert, or "stop" | Okay. |
+| Resident | Speaker | Sent |
+|---|---|---|
+| yes class | "I've notified your caregiver. Stay where you are." | help alert |
+| no class | "Okay." | nothing |
+| stop | silence | nothing |
+| unclear or silence | "Sorry, I didn't catch that. Do you need help? Yes or no." then the same three outcomes; unclear again → silence | nothing |
+| speaker could not listen at all (both asks failed) | "I can't hear you right now. If you need help, please use your phone." | nothing |
 
-### A. After any wake (alert active or not)
-Wake, chime, then the speaker listens (firmware; never talk over the resident).
+**Alert already active** (24 h incident timer running). "Your caregiver has been notified.
+Do you still need help? Yes or no."
 
-| They say | Speaker |
-|---|---|
-| Nothing | I'm here. Do you need help? |
-| A help phrase (help, help me, I need help, I fell, I can't get up, …) | I heard you need help. Should I alert your caregiver? |
-| Okay class | Okay. / Okay, I've told your caregiver you're okay. (see D) |
-| Stop | Okay. |
-| Anything else ("what time is it", "I can't breathe", a mumble) | I'm here. Do you need help? |
+| Resident | Speaker | Sent |
+|---|---|---|
+| no class ("no", "I'm okay", …) | "Okay, I've told your caregiver you're okay." | all-clear: open help row marked Safe, caregiver pushed |
+| yes class | "Tell me what's wrong." → whatever they say → "Okay, I've sent that to your caregiver." | their words added to the same incident, caregiver pushed |
+| stop | silence | nothing |
+| unclear | asked once more, as above | nothing |
 
-**Why the question is asked even during an active alert:** the hub cannot know whether a
-caregiver already marked the alert Safe in the app. If it forwarded speech in the
-background, "I can't breathe" after a resolved alert could be silently dropped. So it
-always asks; a yes during a real alert simply adds to the open incident (one extra
-question, harmless), and a yes during a resolved one starts a fresh alert.
+A send that fails is always spoken: "I couldn't send the alert / that. Please use your phone."
 
-The answer to the question:
-
-| Answer | Result |
-|---|---|
-| Yes class: yes, yeah, yep, please, help, help me, I fell, I can't get up, or **anything that starts with yes/yeah/yep** ("yes, my hip hurts") | Alert (section B) |
-| No class: no, nope, no thank you, no I don't, I don't need help, or the **okay class** ("I'm okay", "no I'm fine") | "Okay, I won't send anything." Nothing is suppressed afterwards. |
-| Stop | "Okay." Asks nothing more. |
-| Unclear or silence | Ask once more ("… Just say yes or no."). Still unclear: if they spoke, "I didn't send an alert…"; if the speaker could not listen at all both times, "I can't hear you right now…"; silence stays silent. Nothing is sent. |
-
-A yes wins when both appear ("no, I need help").
-
-### B. Alert
-Publish intent `help` with the resident's words, then speak on the **result**:
-- Sent: "I've sent your caregiver an alert. Stay where you are." Start the 24-hour
-  incident timer. If no incident was active before this yes, start the follow-up (C).
-- Failed: "I couldn't send the alert. Please use your phone." Timer untouched.
-
-### C. Follow-up (about 10 s after a NEW alert; skipped after stop or if the speaker is busy)
-"Are you hurt?"
-| Answer | Result |
-|---|---|
-| Okay class ("I'm okay", "no I'm fine") | The all-clear (D): "Okay, I've told your caregiver you're okay." |
-| Stop | "Okay." |
-| Anything else ("no", "yes my hip", …) | Added to the same incident with their words, caregiver pushed: "Okay, I've sent that to your caregiver." |
-| Nothing | Published as "No answer to 'Are you hurt?'", nothing spoken. |
-No reminders afterwards.
-
-### D. The all-clear ("I'm okay", okay class, anywhere)
-Publish intent `okay`. The cloud marks any open help row Safe with a "cleared by the
-resident" note and sends the family an all-clear push when `notify` is set or a row was
-actually cleared.
-- Incident timer active → `notify: true`, cancel the timer, say "Okay, I've told your
-  caregiver you're okay." (always true: that push is always sent while the timer runs).
-- No active timer → `notify: false`, say "Okay." (the cloud still clears a stale open
-  row if it finds one, and pushes only then).
-- Publish failed → "I couldn't send that. Please use your phone."
+### Answer classes (the complete lists live in `vivajot_voice_help_confirm`)
+- **Yes** (≈70 forms): yes, yeah, yep, yup, uh huh, mm hmm, sure, please, I think so, help,
+  help me, I need help, somebody help, send/get/call help, call my family/daughter/son/the
+  nurse, I fell, I can't get up, I can't move, I'm hurt, I'm bleeding, I can't breathe, I'm
+  not okay, I'm sick/dizzy/in pain, emergency, anything starting with yes/yeah/yep/help,
+  and "no I need help" / "no I fell" (a yes wins when both appear).
+- **No** (≈35 forms): no, nope, nah, no thanks, not now, I don't need help/anything, just
+  testing, cancel, that's okay, it's fine, and the okay class: [no] I'm/I am [doing|feeling]
+  okay/ok/fine/alright/good/safe/better [now], all good, false alarm, never mind, forget it,
+  I'm good, everything is/'s okay/fine.
+- **Stop**: stop, VivaJot stop, shut up, be quiet, quiet, stop talking, that's enough,
+  enough, leave me alone, no more.
+- **Not an answer** (asked again): okay, fine, hello, what, "I can't stop bleeding" (not a
+  stop: stop is only a whole answer), anything else.
 
 ### Incident state
-`timer.vivajot_help_active`, 24 h, `restore: true` (survives the 3 AM restart). Started by
-a sent alert, cancelled by the all-clear. Its **only** job is to make the "I'm okay" line
-true and to skip a repeat "Are you hurt?" on a re-alert. It never silences anything: a
-silent wake always gets the question, and speech is never routed by it. The old
-30-minute `input_boolean` is gone.
+`timer.vivajot_help_active`, 24 h, `restore: true`. Started by every successful help send,
+cancelled by the all-clear. It only selects which question is asked and keeps the "told your
+caregiver" line truthful. The 10-minute mute timer and the automatic "Are you hurt?"
+follow-up are gone: a resident who wants to add something says "VivaJot" again.
 
-### Hub changes (built)
-- `vivajot_voice_conversation`: catch-all `{utterance}` trigger; routes to all-clear,
-  stop, help-confirm, or the question. Nothing reaches Home Assistant's default agent.
-- `vivajot_voice_wake_event`: silent wake → question, regardless of incident state.
-- `vivajot_voice_help_confirm`: answer lists in sentence-template syntax (`yes {extra}`,
-  `[no] (i'm|i am) …`), stop handling in both asks, publish-result branching, the two
-  truthful "nothing sent" lines, follow-up only when no incident was active.
-- `vivajot_voice_fall_coaching`: okay class → all-clear; stop; else forward with words.
-- `viva_renamer.voice_alert` returns `{"published": true|false}`; failures are spoken.
-- `timer.vivajot_help_active` replaces the flag; the 30-minute timeout automation is gone.
+### Hub automations (3)
+- `vivajot_voice_wake_event`: logs the wake to the Logbook ("VivaJot wake: vivajot on
+  <speaker>"), then fires the question. With firmware 26.10.28.1+ (`ask: true` in the event)
+  it asks at once; with older firmware it waits for the speaker's own listen to finish and
+  asks only if the conversation handler did not take the speech.
+- `vivajot_voice_help_confirm`: the question, the retry, the two modes, the sends.
+- `vivajot_voice_conversation`: safety net for older firmware or any speech that still
+  reaches the pipeline: stop, the okay class (all-clear), or the question. Nothing falls
+  through to Home Assistant's built-in intents.
 
-### Cloud (deployed listener, unchanged by this revision)
-- `help`: open help row (99/999, untriaged, last 2 h) → append words + direct push;
-  otherwise insert a new 99 row (scanner pushes it).
-- `okay`: mark open help rows Safe (24 h) + all-clear push if `notify` or a row cleared.
-- `coaching_update`: legacy, kept for hubs that haven't updated.
+### Firmware 26.10.28.1
+- Models: `vivajot` only (`probability_cutoff` 0.80, `sliding_window_size` 5). `help_help`,
+  `vivajot_help` and `somebody_help` are not in the firmware.
+- On wake: chime, fire `esphome.vivajot_wake_word` with `ask: "true"`, and do **not** start
+  the local command listen. A wake during an announcement stops the announcement.
+- Everything else (OTA from this repo, watchdog, stock `stop` word during announcements)
+  unchanged.
 
-### Known limits (documented, not fixed)
-- The incident timer is per hub. On a shared multi-apartment hub one apartment's alert
-  changes only the "I'm okay" wording for the others, nothing else. Single-speaker today.
-- Dashboard and push lag the speaker by ~15 s (BigQuery update time). Not a bug.
-- Speakers on firmware older than 26.10.22.4 don't report wakes, so a silent wake gets no
-  question there; spoken requests still work.
+### Cloud (deployed listener, unchanged)
+`help` appends to an open incident (2 h) or inserts a new 99 row; `okay` marks open rows Safe
+and pushes the all-clear when `notify` is set.
 
-### Timeline tests (run on the real speaker; each is a sequence, not a phrase)
-1. **False wake, someone present:** "VivaJot, what time is it" → "I'm here. Do you need
-   help?" → "no" → "Okay, I won't send anything." Nothing on the phone or dashboard.
-2. **False wake, empty room:** "VivaJot" → silence → question → silence → second ask →
-   silence → nothing more, nothing sent.
-3. **Real request:** "Help Help" → (silence) → question → "yes" → "I've sent your
-   caregiver an alert…" → push + hero within ~15 s → "Are you hurt?" → "no" → "Okay,
-   I've sent that to your caregiver" → same card updated, not a second one.
-4. **Okay as the follow-up answer:** repeat 3 but answer "Are you hurt?" with "I'm okay"
-   → "Okay, I've told your caregiver you're okay." → all-clear push, hero releases.
-5. **Okay later:** alert, wait > 30 min, "VivaJot, I'm okay" → the *told your caregiver*
-   line (not a bare "Okay."), push arrives, hero releases.
-6. **Stale alert:** alert, caregiver taps Mark Safe, then "VivaJot, I can't breathe" →
-   question → "yes" → a fresh alert. Then "VivaJot, thank you" → question → "no" →
-   nothing sent.
-7. **Stop mid-question:** during any question, "VivaJot, stop" → "Okay." and no second
-   ask.
-8. **Overnight:** alert at 11 PM, no okay, 3 AM restart, "VivaJot, I'm okay" at 7 AM →
-   the *told your caregiver* line.
+### Known limits
+- "help" shouted without "VivaJot" does nothing. Teaching, a card by the speaker, and the
+  phone/pendant are the mitigations.
+- The question starts right after the chime, so "VivaJot I fell" said in one breath may lose
+  its first word; "I fell" and "fell" variants are in the yes class.
+- The incident timer is per hub (single-speaker today).
+- Dashboard and push lag the speaker by ~15 s (BigQuery update time).
+
+### Timeline tests (real speaker)
+1. **False wake, someone present:** "VivaJot" → "Do you need help? Yes or no." → "no" →
+   "Okay." Nothing on the phone or dashboard.
+2. **False wake, empty room:** "VivaJot" → question → silence → "Sorry, I didn't catch
+   that…" → silence → nothing more, nothing sent.
+3. **Real request:** "VivaJot" → question → "yes" → "I've notified your caregiver. Stay where
+   you are." → push + hero within ~15 s. Logbook shows "VivaJot wake: vivajot".
+4. **Still needs help:** "VivaJot" → "Your caregiver has been notified. Do you still need
+   help?" → "yes" → "Tell me what's wrong." → "my hip" → "Okay, I've sent that to your
+   caregiver." → same card updated with "my hip", not a second card.
+5. **All-clear:** "VivaJot" → "…Do you still need help?" → "no" (or "I'm fine") → "Okay, I've
+   told your caregiver you're okay." → all-clear push, hero releases.
+6. **Stale alert:** caregiver taps Mark Safe on the app, then "VivaJot" → the speaker still
+   asks "…Do you still need help?" (the hub timer runs 24 h) → "yes" → words → a fresh alert.
+7. **Stop mid-question:** during any question, "VivaJot, stop" or "stop" → silence, no retry.
+8. **Soft voice:** whisper "yeah" / "nope" / "uh huh" from across the room; each must land.
+9. **Overnight:** alert at 11 PM, 3 AM restart, "VivaJot" at 7 AM → the "still need help"
+   question (timer restored).
 
 ---
 
-## "Help Help" is missed; "VivaJot" is reliable — why, and what to do
+## Wake-word measurements (2026-10-28) and the decision
 
-**Why.** Three compounding causes:
-1. **Phonetics.** "Help help" is one short, breathy, plosive-heavy syllable repeated —
-   microWakeWord models thrive on longer, phonetically varied words ("okay nabu",
-   "hey jarvis", "vee-va-jot"). A repeated word also has weak temporal structure: real
-   people vary the gap and cadence between the two "help"s far more than the synthetic
-   training samples did.
-2. **Cutoff asymmetry.** After the false-wake problems, `help_help` was raised to **0.8**
-   while `vivajot` sits at 0.7. The **emergency word now has the system's highest miss
-   rate** — backwards for a safety product: missing a real "Help Help" costs far more
-   than a false wake.
-3. **Training data.** The model was trained on synthetic voices; elderly voices (slower,
-   quavery, "heeelp… help") sit at the edge of its distribution.
+Bench: microWakeWord's own inference over the same audio for every model, using the
+speaker's detection rule (mean of the last 5 outputs > cutoff, ~2 s refractory). FAPH = false
+accepts per hour. Full numbers in the session results file; summary:
 
-**What to do (in order of leverage):**
-1. **Ship the TO-BE confirmation flow first.** Once every idle wake is answered by
-   "I'm here. Do you need help?", a false wake costs one spoken question that ends in a
-   "no" or in silence, never a caregiver page. That frees us to tune wake words for
-   **recall** (measure the false-wake rate on the new flow first).
-2. **Then lower `help_help` to ~0.6–0.65** (manifest JSON change, no retrain). More false
-   wakes, far fewer misses — and every false wake is absorbed by the question.
-3. **Lean on the reliable word in resident training materials:** "Say *VivaJot*, then tell
-   it what you need" — "VivaJot, help" wakes on "VivaJot" and the conversation handler
-   turns "help" into the confirmation question, so the emergency word is a backup, not
-   the only road. (No separate "VivaJot Help" wake word — decided against.)
-4. **Retrain `help_help` properly** (the real fix for cause 1/3): more samples, varied
-   inter-word gaps and speeds, aged-voice augmentation; see
-   [wakewords/README.md](wakewords/README.md) and the Colab notebook. This is the only
-   fix for phrases that score ≥ cutoff on garbage ("need to stop" → 1.00 on `vivajot`).
+| Audio | Model | FAPH @0.75 | @0.80 | @0.85 | @0.90 | @0.95 |
+|---|---|---|---|---|---|---|
+| DipCo dinner party, 134 min | vivajot (deployed) | 9.0 | 8.1 | 6.7 | 5.4 | 3.1 |
+| | help_help (deployed) | 0.9 | 0.45 | 0.0 | 0.0 | 0.0 |
+| | somebody_help (new, 20k steps, extra music negatives) | 7.2 | 5.4 | 4.0 | 2.2 | 1.3 |
+| CHiME-6 homes, 119 min | vivajot | 0.5 | 0.0 | 0.0 | 0.0 | 0.0 |
+| | help_help | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| | somebody_help | 3.0 | 2.5 | 2.5 | 2.0 | 2.0 |
+| FMA music, 10 min held out | all three | 5.95 | 0.0 (help_help 5.95) | 0.0 | 0.0 | 0.0 |
+
+Recall on clean synthetic clips (18 Piper voices): help_help 84% at 0.75; somebody_help 97%.
+Cross-phrase 0%.
+
+What it says:
+- The deployed **VivaJot model is the main false-wake source**, not Help Help.
+- **Help Help is quiet but deaf** (misses 16% even of clean voices) — the missed real calls.
+- The new Somebody Help model hears well but false-wakes 7×/h at 0.75; the "stronger"
+  recipe (negative weight 40, 20k steps, extra music negatives) did not beat the original
+  recipe on false accepts. The root cause is the training data: 18 synthetic voices, thin
+  negatives, no sound-alike phrases, and the notebook's AudioSet download is silently empty.
+- Reference: Nabu Casa's `okay_nabu` is 0.000 FAPH on DipCo at 0.85.
+
+Decision: **VivaJot only, cutoff 0.80**, question on wake, big yes/no lists. The Logbook now
+records every wake with its word, so the next cutoff change is made from real counts, not
+from guesses. Next (one model for the whole fleet, done once): retrain VivaJot with the full
+recipe (many more voices, sound-alike negatives, working noise sets, false-accept check
+during training on paid Colab), measure it on this bench against the deployed model, ship
+only if better. Never per-house training.
