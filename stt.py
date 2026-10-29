@@ -3,9 +3,11 @@
 from collections.abc import AsyncIterable
 import base64
 import io
+import array
 import json
 import logging
 import os
+import sys
 import wave
 import aiohttp
 
@@ -20,6 +22,36 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 _LOGGER = logging.getLogger(__name__)
 _LOADED = False
+
+# Soft, short answers ("no", "yes", "help") from a quiet voice come back from Google
+# as "no text" unless the clip is louder and has some silence around it.
+# Tested 2026-10-28: clips 40 dB below normal were empty raw and recognized after this.
+_TARGET_PEAK = 9000      # loud enough for the recognizer, well below clipping
+_MAX_GAIN = 40.0         # never boost more than this (limits amplified room noise)
+_MIN_PEAK = 100          # below this it is silence/hiss: leave it alone, it stays empty
+_PAD_MS = 300            # silence added before and after the speech
+
+
+def _prepare_pcm(pcm: bytes, sample_rate: int) -> tuple[bytes, int, int]:
+    """Return (pcm ready to send, peak before, peak after). 16-bit little-endian mono."""
+    if len(pcm) % 2:
+        pcm = pcm[:-1]
+    samples = array.array("h")
+    samples.frombytes(pcm)
+    if sys.byteorder == "big":
+        samples.byteswap()
+    peak = max((abs(x) for x in samples), default=0)
+    if peak >= _MIN_PEAK:
+        gain = min(_MAX_GAIN, _TARGET_PEAK / peak)
+        if gain > 1.05:
+            samples = array.array("h", [max(-32768, min(32767, int(x * gain))) for x in samples])
+    pad = array.array("h", [0] * int(sample_rate * _PAD_MS / 1000))
+    out = pad + samples + pad
+    new_peak = max((abs(x) for x in out), default=0)
+    if sys.byteorder == "big":
+        out.byteswap()
+    return out.tobytes(), peak, new_peak
+
 
 async def async_setup_platform(
     hass: HomeAssistant,
@@ -171,6 +203,18 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
                     audio_bytes = audio_bytes[44:]
         elif hasattr(metadata, "sample_rate") and metadata.sample_rate:
             sample_rate = int(metadata.sample_rate)
+
+        # Make quiet, short answers recognizable (see _prepare_pcm)
+        try:
+            audio_bytes, peak_in, peak_out = await self.hass.async_add_executor_job(
+                _prepare_pcm, audio_bytes, sample_rate
+            )
+            _LOGGER.warning(
+                f"VivaJot STT: audio {len(audio_bytes) / 2 / sample_rate:.1f}s, "
+                f"peak {peak_in} -> {peak_out}"
+            )
+        except Exception as prep_err:
+            _LOGGER.error(f"VivaJot STT: Audio prepare failed, sending as received: {prep_err}")
 
         # Acquire Google Cloud OAuth token
         try:

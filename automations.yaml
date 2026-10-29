@@ -304,7 +304,7 @@
 # No alert active:  "Do you need help? Yes or no."
 #    yes -> alert -> "I've notified your caregiver. Stay where you are."
 #    no  -> "Okay."     stop -> silent     unclear twice -> silent, nothing sent
-# Alert active:     "Your caregiver has been notified. Do you still need help? Yes or no."
+# Alert active:     "Your caregiver has already been notified. Do you still need help? Yes or no."
 #    no  -> all-clear -> "Okay, I've told your caregiver you're okay."
 #    yes -> "Tell me what's wrong." -> their words go to the caregiver
 #           -> "Okay, I've sent that to your caregiver."
@@ -325,11 +325,10 @@
     initial_heard: "{{ (trigger.event.data.heard | default('', true) | string).strip() }}"
     help_active: "{{ is_state('timer.vivajot_help_active', 'active') }}"
     question_1: >
-      {{ 'Your caregiver has been notified. Do you still need help? Yes or no.'
+      {{ 'Your caregiver has already been notified. Do you still need help? Yes or no.'
          if help_active else 'Do you need help? Yes or no.' }}
-    question_2: >
-      {{ "Sorry, I didn't catch that. Do you still need help? Yes or no."
-         if help_active else "Sorry, I didn't catch that. Do you need help? Yes or no." }}
+    # Short on purpose: a second long sentence sounds like rambling.
+    question_2: "Sorry, I didn't catch that. Yes or no?"
     # Answer lists (sentence-template syntax: [optional], (a|b), {wildcard}).
     # Lots of ways to say yes and no, because residents must never have to guess
     # the exact words. "yes {extra}" accepts anything that starts with yes.
@@ -473,7 +472,6 @@
     - variables:
         id1: "{{ (ans1.id | default('', true)) if ans1 is defined and ans1 is mapping else '' }}"
         raw1: "{{ (ans1.sentence | default('', true) | string).strip() if ans1 is defined and ans1 is mapping else '' }}"
-        heard1: "{{ ans1 is defined and ans1 is mapping }}"
         clear1: "{{ id1 in ['yes', 'no', 'stop'] }}"
     # Unclear or silent the first time: ask once more
     - if:
@@ -498,15 +496,12 @@
         - variables:
             id2: "{{ (ans2.id | default('', true)) if ans2 is defined and ans2 is mapping else '' }}"
             raw2: "{{ (ans2.sentence | default('', true) | string).strip() if ans2 is defined and ans2 is mapping else '' }}"
-            heard2: "{{ ans2 is defined and ans2 is mapping }}"
             final_id: "{{ id2 }}"
             final_raw: "{{ raw2 }}"
-            any_heard: "{{ heard1 or heard2 }}"
       else:
         - variables:
             final_id: "{{ id1 }}"
             final_raw: "{{ raw1 }}"
-            any_heard: "{{ heard1 }}"
     - choose:
         # Stop: be quiet. Nothing else happens.
         - conditions: "{{ final_id == 'stop' }}"
@@ -646,16 +641,6 @@
                     message: "I couldn't send that. Please use your phone."
                     preannounce: false
 
-        # The speaker could not listen at all (both asks failed, e.g. speech-to-text down)
-        - conditions: "{{ not any_heard }}"
-          sequence:
-            - action: assist_satellite.announce
-              continue_on_error: true
-              target:
-                entity_id: "{{ sat_entity }}"
-              data:
-                message: "I can't hear you right now. If you need help, please use your phone."
-                preannounce: false
-
-      # Unclear twice, or silence: nothing more is said and nothing is sent.
+      # Unclear twice, or silence (a false wake in an empty room): nothing more is said and
+      # nothing is sent. No "I can't hear you" line: a silent answer is the normal false-wake case.
       default: []

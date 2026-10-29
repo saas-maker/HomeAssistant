@@ -125,11 +125,13 @@ Agreed by Cary after the wake-word measurements below. Built in `automations.yam
 | yes class | "I've notified your caregiver. Stay where you are." | help alert |
 | no class | "Okay." | nothing |
 | stop | silence | nothing |
-| unclear or silence | "Sorry, I didn't catch that. Do you need help? Yes or no." then the same three outcomes; unclear again → silence | nothing |
-| speaker could not listen at all (both asks failed) | "I can't hear you right now. If you need help, please use your phone." | nothing |
+| unclear or silence | "Sorry, I didn't catch that. Yes or no?" then the same three outcomes; unclear or silent again → silence | nothing |
 
-**Alert already active** (24 h incident timer running). "Your caregiver has been notified.
-Do you still need help? Yes or no."
+There is no "I can't hear you" line. A silent or unrecognized answer is the normal false-wake case
+(empty room), and a speaker that talks to an empty room gets unplugged.
+
+**Alert already active** (24 h incident timer running). "Your caregiver has already been
+notified. Do you still need help? Yes or no."
 
 | Resident | Speaker | Sent |
 |---|---|---|
@@ -183,6 +185,14 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
 `help` appends to an open incident (2 h) or inserts a new 99 row; `okay` marks open rows Safe
 and pushes the all-clear when `notify` is set.
 
+### Speech-to-text and quiet answers (2026-10-28)
+Live speaker log: the speaker heard the resident (voice detected) but Google returned "no text
+recognized" for one-word answers. Probe with synthetic clips: a "no" or "help" 40 dB below normal
+volume was empty from Google raw and recognized after `stt.py` raises the level (peak to 9000,
+gain capped at 40x, silence left alone) and adds 0.3 s of silence each side. The hub log now
+prints `VivaJot STT: audio 1.7s, peak 314 -> 9000` for every answer, so a real resident's level
+can be read off the Logs page. Not yet verified with a real voice.
+
 ### Known limits
 - "help" shouted without "VivaJot" does nothing. Teaching, a card by the speaker, and the
   phone/pendant are the mitigations.
@@ -198,8 +208,8 @@ and pushes the all-clear when `notify` is set.
    that…" → silence → nothing more, nothing sent.
 3. **Real request:** "VivaJot" → question → "yes" → "I've notified your caregiver. Stay where
    you are." → push + hero within ~15 s. Logbook shows "VivaJot wake: vivajot".
-4. **Still needs help:** "VivaJot" → "Your caregiver has been notified. Do you still need
-   help?" → "yes" → "Tell me what's wrong." → "my hip" → "Okay, I've sent that to your
+4. **Still needs help:** "VivaJot" → "Your caregiver has already been notified. Do you still
+   need help?" → "yes" → "Tell me what's wrong." → "my hip" → "Okay, I've sent that to your
    caregiver." → same card updated with "my hip", not a second card.
 5. **All-clear:** "VivaJot" → "…Do you still need help?" → "no" (or "I'm fine") → "Okay, I've
    told your caregiver you're okay." → all-clear push, hero releases.

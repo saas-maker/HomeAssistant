@@ -125,7 +125,7 @@ handler did not take the speech.
 **`vivajot_voice_help_confirm`** — the whole conversation. No alert active: *"Do you need
 help? Yes or no."* → yes: `viva_renamer.voice_alert` (intent `help`), then "I've notified
 your caregiver. Stay where you are."; no: "Okay."; stop: silence; unclear: asked once more,
-then silence. Alert active: *"Your caregiver has been notified. Do you still need help? Yes
+then silence. Alert active: *"Your caregiver has already been notified. Do you still need help? Yes
 or no."* → no / okay class: intent `okay` with `notify: true`, "Okay, I've told your
 caregiver you're okay."; yes: *"Tell me what's wrong."*, their words sent with intent
 `help`, "Okay, I've sent that to your caregiver." Every send failure is spoken ("…Please use
