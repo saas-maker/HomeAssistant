@@ -1,14 +1,14 @@
 {
   "name": "VivaJot Voice PE",
-  "version": "26.10.26.1",
+  "version": "26.10.28.1",
   "home_assistant_domain": "esphome",
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "ota": {
         "path": "voice-pe-vivajot.ota.bin",
-        "md5": "b9b96c01e21c5606aebae02822c0e1c8",
-        "summary": "Help Help and VivaJot wake words both at 0.75 cutoff; OTA updates from VivaJot repo",
+        "md5": "771af43f63c52a01e2488d2d705f1820",
+        "summary": "New Somebody Help wake word (replaces Help Help) at 0.75; VivaJot raised to 0.85; OTA updates from VivaJot repo",
         "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
       }
     }
