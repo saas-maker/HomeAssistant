@@ -145,11 +145,15 @@ notified. Do you still need help? Yes or no."
 A send that fails is always spoken: "I couldn't send the alert / that. Please use your phone."
 
 ### Answer classes (the complete lists live in `vivajot_voice_help_confirm`)
-- **Yes** (≈70 forms): yes, yeah, yep, yup, uh huh, mm hmm, sure, please, I think so, help,
-  help me, I need help, somebody help, send/get/call help, call my family/daughter/son/the
-  nurse, I fell, I can't get up, I can't move, I'm hurt, I'm bleeding, I can't breathe, I'm
-  not okay, I'm sick/dizzy/in pain, emergency, anything starting with yes/yeah/yep/help,
-  and "no I need help" / "no I fell" (a yes wins when both appear).
+- **Yes** (26 forms, deliberately short, 2026-10-28): yes, yeah, yep (+ "please", "I do"),
+  help, help me, please help, somebody help, send help, I need help, I fell (down), I've
+  fallen, I can't get up, and "no I need help" / "no I fell" / "no I can't get up". The
+  question says "yes or no", so "yes" and "help" carry nearly every real answer; "yeah" and
+  "yep" stay because speech-to-text often writes a soft "yes" that way. Removed as too
+  TV-prone or too vague: yup, uh huh, mm hmm, sure, please, I think so, call my family,
+  I'm hurt/bleeding/in pain, emergency, and every wildcard ("yes ..." no longer accepts
+  anything after it). A removed form is not a miss: it is "not an answer" and gets "Sorry, I
+  didn't catch that. Yes or no?", which steers the resident to "yes".
 - **No** (≈35 forms): no, nope, nah, no thanks, not now, I don't need help/anything, just
   testing, cancel, that's okay, it's fine, and the okay class: [no] I'm/I am [doing|feeling]
   okay/ok/fine/alright/good/safe/better [now], all good, false alarm, never mind, forget it,
@@ -157,7 +161,8 @@ A send that fails is always spoken: "I couldn't send the alert / that. Please us
 - **Stop**: stop, VivaJot stop, shut up, be quiet, quiet, stop talking, that's enough,
   enough, leave me alone, no more.
 - **Not an answer** (asked again): okay, fine, hello, what, "I can't stop bleeding" (not a
-  stop: stop is only a whole answer), anything else.
+  stop: stop is only a whole answer), "yes my hip hurts", anything else. The resident adds
+  detail after the alert, when the speaker asks "Tell me what's wrong."
 
 ### Incident state
 `timer.vivajot_help_active`, 2 h (the cloud incident window), `restore: true`. Started by every successful help send,
@@ -215,7 +220,7 @@ they were okay. The resident's later words ("my foot hurts") are appended to the
 - "help" shouted without "VivaJot" does nothing. Teaching, a card by the speaker, and the
   phone/pendant are the mitigations.
 - The question starts right after the chime, so "VivaJot I fell" said in one breath may lose
-  its first word; "I fell" and "fell" variants are in the yes class.
+  its first word; "I fell" is in the yes class.
 - The incident timer is per hub (single-speaker today).
 - Dashboard and push lag the speaker by ~15 s (BigQuery update time).
 - The question starts ~1.5 s after the wake word (the hub waits out the chime, see the timing

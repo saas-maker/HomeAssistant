@@ -134,7 +134,7 @@ It first waits 1.5 s so the wake chime has finished. Alert active: *"Your caregi
 or no."* → no / okay class: intent `okay` with `notify: true`, "Okay, I've told your
 caregiver you're okay."; yes: *"Tell me what's wrong."*, their words sent with intent
 `help`, "Okay, I've sent that to your caregiver." Every send failure is spoken ("…Please use
-your phone."). Answer lists (≈70 yes, ≈35 no, 12 stop) are sentence templates in the
+your phone."). Answer lists (26 yes, ≈35 no, 12 stop) are sentence templates in the
 automation's variables.
 
 **`vivajot_voice_conversation`** — catch-all `{utterance}` conversation trigger, a safety
