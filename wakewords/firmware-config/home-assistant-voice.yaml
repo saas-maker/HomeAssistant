@@ -318,7 +318,7 @@ binary_sensor:
       #     - Announcements
       #     - Voice Assistant Pipeline run
       #     - Music
-      #   - Starts the voice assistant if it is not yet running and if the device is not muted.
+      #   - VivaJot: the press is a wake word (see below), not a local listen.
       - timing:
           - ON for at most 1s
           - OFF for at least 0.25s
@@ -332,42 +332,40 @@ binary_sensor:
                       switch.is_on: timer_ringing
                     then:
                       - switch.turn_off: timer_ringing
+                    # VivaJot: pressing the button is the same as saying "VivaJot". Same chime, same
+                    # event, so the hub asks "Do you need help? Yes or no." A press during the
+                    # question or the listen starts the question again (the hub restarts it);
+                    # it never cuts the speaker off. When muted the microphones are off, so
+                    # there is nobody to hear the answer and a press does nothing.
                     else:
                       - if:
                           condition:
-                            voice_assistant.is_running:
+                            and:
+                              - switch.is_off: master_mute_switch
+                              - lambda: return !id(init_in_progress);
                           then:
-                            - voice_assistant.stop:
-                          else:
+                            - homeassistant.event:
+                                event: esphome.vivajot_wake_word
+                                data:
+                                  wake_word: "button"
+                                  device_name: !lambda return App.get_name();
+                                  ask: "true"
                             - if:
                                 condition:
-                                  media_player.is_announcing:
+                                  voice_assistant.is_running:
+                                then:
+                                  - voice_assistant.stop:
+                            - if:
+                                condition:
+                                  media_player.is_playing:
                                     id: external_media_player
                                 then:
-                                  media_player.stop:
-                                    announcement: true
-                                    id: external_media_player
-                                else:
-                                  - if:
-                                      condition:
-                                        media_player.is_playing:
-                                          id: external_media_player
-                                      then:
-                                        - media_player.pause:
-                                            id: external_media_player
-                                      else:
-                                        - if:
-                                            condition:
-                                              and:
-                                                - switch.is_off: master_mute_switch
-                                                - not: voice_assistant.is_running
-                                            then:
-                                              - script.execute:
-                                                  id: play_sound
-                                                  priority: true
-                                                  sound_file: "center_button_press_sound"
-                                              - delay: 300ms
-                                              - voice_assistant.start:
+                                  - media_player.pause:
+                                      id: external_media_player
+                            - script.execute:
+                                id: play_sound
+                                priority: true
+                                sound_file: "wake_word_triggered_sound"
       # Double Click
       #  . Exposed as an event entity. To be used in automations inside Home Assistant
       - timing:
@@ -1063,6 +1061,20 @@ event:
       - easter_egg_press
 
 script:
+  # VivaJot: end a listen that nobody spoke into. Runs from on_listening; if the resident has
+  # started talking by then (phase moved on) nothing happens. A stop here ends the audio
+  # stream, so Home Assistant finishes the pending question with "no answer" (checked
+  # against HA 2025.11 assist_satellite) and the speaker goes back to waiting for the wake word.
+  - id: vivajot_listen_cap
+    mode: restart
+    then:
+      - delay: 8s
+      - if:
+          condition:
+            lambda: return id(voice_assistant_phase) == ${voice_assist_waiting_for_command_phase_id};
+          then:
+            - voice_assistant.stop:
+
   # Master script controlling the LEDs, based on different conditions : initialization in progress, wifi and api connected and voice assistant phase.
   # For the sake of simplicity and re-usability, the script calls child scripts defined below.
   # This script will be called every time one of these conditions is changing.
@@ -1894,6 +1906,8 @@ voice_assistant:
   on_listening:
     - lambda: id(voice_assistant_phase) = ${voice_assist_waiting_for_command_phase_id};
     - script.execute: control_leds
+    # VivaJot: if nobody starts talking within 8 s, stop listening (Home Assistant's own limit is 15 s).
+    - script.execute: vivajot_listen_cap
   on_stt_vad_start:
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_for_command_phase_id};
     - script.execute: control_leds

@@ -45,7 +45,7 @@ in [wakewords/README.md](wakewords/README.md) and
 ## 1. The speaker (ESPHome firmware)
 
 Hardware: Home Assistant Voice Preview Edition (ESP32-S3). Firmware is a VivaJot fork of
-the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.10.28.1**.
+the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.10.28.1** (stable); **v26.10.28.2** is on the beta channel.
 
 **Privacy model.** Wake-word detection is 100 % on-device (microWakeWord). No audio leaves
 the room until a wake word fires — required for health-facility deployments. Only after a
@@ -71,6 +71,9 @@ model for the whole fleet, never per-house training.
   command listen; the hub asks "Do you need help?" about 1.5 s later, once the chime has
   finished (see §2: asking during the chime makes the speaker open its mic mid-question).
 - A wake during an announcement stops playback; the hub's question follows from the event.
+- v26.10.28.2 (beta): the center button is a wake word: one press fires the same event with
+  `wake_word: "button"`; and a listen that nobody speaks into ends after 8 s (script
+  `vivajot_listen_cap`) instead of Home Assistant's 15 s.
 - A 120 s watchdog restarts microWakeWord if the voice assistant pipeline wedges
   (fixes the "speaker goes permanently deaf after an error" failure).
 

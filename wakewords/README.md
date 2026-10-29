@@ -60,7 +60,9 @@ repo (shows as a normal firmware update in HA; also auto-installable).
 To ship new firmware: rebuild, copy the new .bin files here, bump `version`
 in `ota_manifest.json` (+ `flash_manifest.json`) and update the md5, push.
 The device's "Beta firmware" toggle switches it to `ota_manifest_beta.json`
-for staged rollouts.
+for staged rollouts. The beta manifest points at its own binary
+(`voice-pe-vivajot-beta.ota.bin`), so a beta build never changes what the stable manifest's MD5
+expects. 26.10.28.2 (button wake + 8 s listen cap) is on beta; stable is 26.10.28.1.
 
 NOTE: do NOT accept firmware updates on speakers still running stock
 Nabu Casa firmware pre-flash; stock updates would keep them on stock.
