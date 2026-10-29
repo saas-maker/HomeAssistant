@@ -64,6 +64,11 @@ for staged rollouts. The beta manifest points at its own binary
 (`voice-pe-vivajot-beta.ota.bin`), so a beta build never changes what the stable manifest's MD5
 expects. 26.10.28.2 (button wake + 8 s listen cap) is on beta; stable is 26.10.28.1.
 
+**Installing a beta build on a test speaker:** open the flash page with `?beta=1`
+(`/Plugins/VivaJot/flash.html?beta=1`). It installs `flash_manifest_beta.json` ->
+`voice-pe-vivajot-beta.factory.bin` over USB and shows a BETA banner. The plain page always
+installs the stable release.
+
 NOTE: do NOT accept firmware updates on speakers still running stock
 Nabu Casa firmware pre-flash; stock updates would keep them on stock.
 

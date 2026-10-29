@@ -195,6 +195,7 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
   Assistant resolves the pending question as "no answer" (read from HA 2025.11 source), so the
   hub does not hang. Real-speaker test still to do: a slow resident who starts talking at
   second 6 must still be heard.
+- Install on a test speaker from the flash page with `?beta=1` (USB, the normal route).
 - Promote to the stable channel (copy the binary to `voice-pe-vivajot.ota.bin`, update
   `ota_manifest.json`, `flash_manifest.json` and the factory image) only after those tests pass.
 
