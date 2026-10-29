@@ -124,7 +124,7 @@ Agreed by Cary after the wake-word measurements below. Built in `automations.yam
 | Resident | Speaker | Sent |
 |---|---|---|
 | yes class | "I've notified your caregiver. Stay where you are." | help alert |
-| no class | "Okay." | nothing |
+| no class | silence (just stops) | nothing |
 | stop | silence | nothing |
 | words that are not an answer | "Sorry, I didn't catch that. Yes or no?" then the same three outcomes; unclear or silent again → silence | nothing |
 | silence | silence (not asked twice: an empty room after a false wake) | nothing |
@@ -248,7 +248,7 @@ they were okay. The resident's later words ("my foot hurts") are appended to the
 
 ### Timeline tests (real speaker)
 1. **False wake, someone present:** "VivaJot" → "Do you need help? Yes or no." → "no" →
-   "Okay." Nothing on the phone or dashboard.
+   silence. Nothing on the phone or dashboard.
 2. **False wake, empty room:** "VivaJot" → question → silence → nothing more, nothing sent
    (silence is not asked twice).
 3. **Real request:** "VivaJot" → question → "yes" → "I've notified your caregiver. Stay where

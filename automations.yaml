@@ -303,7 +303,7 @@
 # One yes/no question, asked once more if unclear. Nothing is sent without a yes.
 # No alert active:  "Do you need help? Yes or no."
 #    yes -> alert -> "I've notified your caregiver. Stay where you are."
-#    no  -> "Okay."     stop -> silent     unclear twice -> silent, nothing sent
+#    no  -> silent      stop -> silent     unclear twice -> silent, nothing sent
 # Alert active:     "Your caregiver has already been notified. Do you still need help? Yes or no."
 #    no  -> all-clear -> "Okay, I've told your caregiver you're okay."
 #    yes -> "Tell me what's wrong." -> their words go to the caregiver
@@ -474,15 +474,9 @@
           sequence: []
 
         # ----- No alert active -----
+        # No (nothing active): just stop. Nothing is said and nothing is sent (Cary, 2026-10-28).
         - conditions: "{{ not help_active and final_id == 'no' }}"
-          sequence:
-            - action: assist_satellite.announce
-              continue_on_error: true
-              target:
-                entity_id: "{{ sat_entity }}"
-              data:
-                message: "Okay."
-                preannounce: false
+          sequence: []
 
         - conditions: "{{ not help_active and final_id == 'yes' }}"
           sequence:

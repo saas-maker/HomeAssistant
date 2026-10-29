@@ -131,7 +131,7 @@ handler did not take the speech.
 
 **`vivajot_voice_help_confirm`** — the whole conversation. No alert active: *"Do you need
 help? Yes or no."* → yes: `viva_renamer.voice_alert` (intent `help`), then "I've notified
-your caregiver. Stay where you are."; no: "Okay."; stop: silence; words that are not an
+your caregiver. Stay where you are."; no: silence; stop: silence; words that are not an
 answer: asked once more ("Sorry, I didn't catch that. Yes or no?"); silence: nothing more.
 It first waits 1.5 s so the wake chime has finished. Alert active: *"Your caregiver has already been notified. Do you still need help? Yes
 or no."* → no / okay class: intent `okay` with `notify: true`, "Okay, I've told your
