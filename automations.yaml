@@ -453,7 +453,11 @@
     - condition: template
       value_template: "{{ sat_entity != '' }}"
   action:
-    - delay: "00:00:00.500"
+    # Wait for the wake chime (0.95 s) to finish. If the question arrives while the chime
+    # is still playing, the speaker never sees its player switch to "announcing", falls back
+    # to a 2-second timer, and opens the mic mid-question: it then hears its own voice as the
+    # answer (live log 2026-10-28: "I've been notified"). An idle player avoids that.
+    - delay: "00:00:01.500"
     - action: assist_satellite.ask_question
       continue_on_error: true
       target:
@@ -473,10 +477,13 @@
         id1: "{{ (ans1.id | default('', true)) if ans1 is defined and ans1 is mapping else '' }}"
         raw1: "{{ (ans1.sentence | default('', true) | string).strip() if ans1 is defined and ans1 is mapping else '' }}"
         clear1: "{{ id1 in ['yes', 'no', 'stop'] }}"
-    # Unclear or silent the first time: ask once more
+        # Words were heard but were not yes/no/stop. Silence (or noise) returns no answer at all.
+        heard1: "{{ ans1 is defined and ans1 is mapping }}"
+    # Heard words that were not an answer: ask once more. Silence is the normal false wake
+    # in an empty room, so it is NOT asked twice (a speaker that nags an empty room gets unplugged).
     - if:
         - condition: template
-          value_template: "{{ not clear1 }}"
+          value_template: "{{ heard1 and not clear1 }}"
       then:
         - action: assist_satellite.ask_question
           continue_on_error: true

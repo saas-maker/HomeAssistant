@@ -125,12 +125,13 @@ Agreed by Cary after the wake-word measurements below. Built in `automations.yam
 | yes class | "I've notified your caregiver. Stay where you are." | help alert |
 | no class | "Okay." | nothing |
 | stop | silence | nothing |
-| unclear or silence | "Sorry, I didn't catch that. Yes or no?" then the same three outcomes; unclear or silent again → silence | nothing |
+| words that are not an answer | "Sorry, I didn't catch that. Yes or no?" then the same three outcomes; unclear or silent again → silence | nothing |
+| silence | silence (not asked twice: an empty room after a false wake) | nothing |
 
 There is no "I can't hear you" line. A silent or unrecognized answer is the normal false-wake case
 (empty room), and a speaker that talks to an empty room gets unplugged.
 
-**Alert already active** (24 h incident timer running). "Your caregiver has already been
+**Alert already active** (2 h incident timer running). "Your caregiver has already been
 notified. Do you still need help? Yes or no."
 
 | Resident | Speaker | Sent |
@@ -158,7 +159,7 @@ A send that fails is always spoken: "I couldn't send the alert / that. Please us
   stop: stop is only a whole answer), anything else.
 
 ### Incident state
-`timer.vivajot_help_active`, 24 h, `restore: true`. Started by every successful help send,
+`timer.vivajot_help_active`, 2 h (the cloud incident window), `restore: true`. Started by every successful help send,
 cancelled by the all-clear. It only selects which question is asked and keeps the "told your
 caregiver" line truthful. The 10-minute mute timer and the automatic "Are you hurt?"
 follow-up are gone: a resident who wants to add something says "VivaJot" again.
@@ -193,6 +194,14 @@ gain capped at 40x, silence left alone) and adds 0.3 s of silence each side. The
 prints `VivaJot STT: audio 1.7s, peak 314 -> 9000` for every answer, so a real resident's level
 can be read off the Logs page. Not yet verified with a real voice.
 
+### Timing bug found live (2026-10-28)
+The wake chime (0.95 s) plays as an announcement. When the hub's question arrived while the chime
+was still playing, the speaker's player never switched into "announcing", so the speaker fell back
+to a 2-second timer and opened the mic mid-question. It then transcribed its own voice ("I've been
+notified") as the answer and the next line started at once. The hub now waits 1.5 s before the
+first question, so the player is idle and the speaker waits for the question to really finish.
+A firmware-side fix (send the wake event after the chime ends) would remove the wait; not done.
+
 ### Known limits
 - "help" shouted without "VivaJot" does nothing. Teaching, a card by the speaker, and the
   phone/pendant are the mitigations.
@@ -214,7 +223,7 @@ can be read off the Logs page. Not yet verified with a real voice.
 5. **All-clear:** "VivaJot" → "…Do you still need help?" → "no" (or "I'm fine") → "Okay, I've
    told your caregiver you're okay." → all-clear push, hero releases.
 6. **Stale alert:** caregiver taps Mark Safe on the app, then "VivaJot" → the speaker still
-   asks "…Do you still need help?" (the hub timer runs 24 h) → "yes" → words → a fresh alert.
+   asks "…Do you still need help?" (within the 2 h incident window) → "yes" → words → a fresh alert.
 7. **Stop mid-question:** during any question, "VivaJot, stop" or "stop" → silence, no retry.
 8. **Soft voice:** whisper "yeah" / "nope" / "uh huh" from across the room; each must land.
 9. **Overnight:** alert at 11 PM, 3 AM restart, "VivaJot" at 7 AM → the "still need help"

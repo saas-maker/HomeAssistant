@@ -56,15 +56,14 @@ google_pubsub:
 # dead radio at 3 reboot attempts instead of an endless reboot loop.
 # --- VOICE INCIDENT STATE & MUTE ---
 timer:
-  # Started when a help alert is sent, cancelled by "I'm okay". Its only job is
-  # to make the "I'm okay" reply truthful (the all-clear push always goes while
-  # it runs). 24 h matches how long the cloud lets "I'm okay" clear an alert;
-  # restore: true keeps it running across the nightly 3 AM restart.
+  # Started when a help alert is sent, cancelled by "I'm okay". While it runs the
+  # speaker says "Your caregiver has already been notified. Do you still need help?"
+  # 2 h matches the cloud's incident window (a new "help" within 2 h joins the same
+  # incident). Longer made the speaker say "already notified" the next morning
+  # about last night's alert. restore: true survives the nightly 3 AM restart.
   vivajot_help_active:
-    duration: "24:00:00"
+    duration: "02:00:00"
     restore: true
-  # "Stop" starts this; while running, the follow-up question stays silent.
-  # Never cancels an alert.
 
 counter:
   vivajot_zha_reboots:

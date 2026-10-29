@@ -98,7 +98,7 @@ state.
 ### Shared timers — `configuration.yaml`
 | Timer | Duration | Meaning |
 |---|---|---|
-| `timer.vivajot_help_active` | 24 h, `restore: true` | "A help alert is active." Started by every successful help send, cancelled by the all-clear. Selects which question is asked and keeps the "told your caregiver" line truthful. Survives the 3 AM restart. |
+| `timer.vivajot_help_active` | 2 h, `restore: true` | "A help alert is active." Started by every successful help send, cancelled by the all-clear. Selects which question is asked and keeps the "told your caregiver" line truthful. Survives the 3 AM restart. |
 
 ### Voice UX doctrine (as built, v4, 2026-10-28)
 1. One wake word, "VivaJot". The question comes straight after the chime; the speaker never
