@@ -6,9 +6,9 @@
     {
       "chipFamily": "ESP32-S3",
       "ota": {
-        "path": "voice-pe-vivajot-beta.ota.bin",
+        "path": "voice-pe-vivajot.ota.bin",
         "md5": "10fe0689847ceb31d7f963730976d265",
-        "summary": "Beta: the center button works like saying VivaJot; the listen stops after 8 s of silence",
+        "summary": "Beta channel - currently identical to production",
         "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
       }
     }

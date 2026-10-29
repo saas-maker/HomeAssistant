@@ -181,7 +181,7 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
   reaches the pipeline: stop, the okay class (all-clear), or the question. Nothing falls
   through to Home Assistant's built-in intents.
 
-### Firmware 26.10.28.2 (beta channel only, built 2026-10-28; not yet tested on a speaker)
+### Firmware 26.10.28.2 (built 2026-10-28; not yet tested on a speaker)
 - **The center button is a wake word.** A single press plays the same chime and fires the same
   `esphome.vivajot_wake_word` event (`wake_word: "button"`, `ask: "true"`), so the hub asks
   "Do you need help? Yes or no." A press is deliberate, so a TV can never cause one. It never sends
@@ -195,9 +195,8 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
   Assistant resolves the pending question as "no answer" (read from HA 2025.11 source), so the
   hub does not hang. Real-speaker test still to do: a slow resident who starts talking at
   second 6 must still be heard.
-- Install on a test speaker from the flash page with `?beta=1` (USB, the normal route).
-- Promote to the stable channel (copy the binary to `voice-pe-vivajot.ota.bin`, update
-  `ota_manifest.json`, `flash_manifest.json` and the factory image) only after those tests pass.
+- Installed the usual way: Cary flashes his speaker from the flash page (USB); the fleet
+  gets the same build over the air.
 
 ### Firmware 26.10.28.1
 - Models: `vivajot` only (`probability_cutoff` 0.80, `sliding_window_size` 5). `help_help`,

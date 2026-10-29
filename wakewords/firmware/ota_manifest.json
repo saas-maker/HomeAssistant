@@ -1,14 +1,14 @@
 {
   "name": "VivaJot Voice PE",
-  "version": "26.10.28.1",
+  "version": "26.10.28.2",
   "home_assistant_domain": "esphome",
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "ota": {
         "path": "voice-pe-vivajot.ota.bin",
-        "md5": "771af43f63c52a01e2488d2d705f1820",
-        "summary": "VivaJot is the only wake word (cutoff 0.80); the hub asks Do you need help right after the chime; OTA updates from VivaJot repo",
+        "md5": "10fe0689847ceb31d7f963730976d265",
+        "summary": "The center button works like saying VivaJot; the listen stops after 8 s of silence; VivaJot is the only wake word (cutoff 0.80)",
         "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
       }
     }

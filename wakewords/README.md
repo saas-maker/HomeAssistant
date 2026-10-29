@@ -59,15 +59,10 @@ instead of Nabu Casa's server, so flashed speakers pull updates from this
 repo (shows as a normal firmware update in HA; also auto-installable).
 To ship new firmware: rebuild, copy the new .bin files here, bump `version`
 in `ota_manifest.json` (+ `flash_manifest.json`) and update the md5, push.
-The device's "Beta firmware" toggle switches it to `ota_manifest_beta.json`
-for staged rollouts. The beta manifest points at its own binary
-(`voice-pe-vivajot-beta.ota.bin`), so a beta build never changes what the stable manifest's MD5
-expects. 26.10.28.2 (button wake + 8 s listen cap) is on beta; stable is 26.10.28.1.
-
-**Installing a beta build on a test speaker:** open the flash page with `?beta=1`
-(`/Plugins/VivaJot/flash.html?beta=1`). It installs `flash_manifest_beta.json` ->
-`voice-pe-vivajot-beta.factory.bin` over USB and shows a BETA banner. The plain page always
-installs the stable release.
+The device's "Beta firmware" toggle switches it to `ota_manifest_beta.json`,
+which is kept identical to production. There is no separate beta release process:
+every build goes to these manifests, Cary flashes his own speaker from the flash
+page first, and the fleet picks the same build up over the air.
 
 NOTE: do NOT accept firmware updates on speakers still running stock
 Nabu Casa firmware pre-flash; stock updates would keep them on stock.
