@@ -8,7 +8,7 @@
       "ota": {
         "path": "voice-pe-vivajot.ota.bin",
         "md5": "771af43f63c52a01e2488d2d705f1820",
-        "summary": "New Somebody Help wake word (replaces Help Help) at 0.75; VivaJot raised to 0.85; OTA updates from VivaJot repo",
+        "summary": "VivaJot is the only wake word (cutoff 0.80); the hub asks Do you need help right after the chime; OTA updates from VivaJot repo",
         "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
       }
     }
