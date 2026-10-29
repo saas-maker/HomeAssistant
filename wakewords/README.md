@@ -22,6 +22,10 @@ fleet, never per-house training.
 
 ## Training provenance
 
+*History: this describes the 2026-10-21 `vivajot_help` model, which never shipped. The
+shipped `vivajot` model predates it; the 2026-10-28 models are documented in
+VOICE_HELP_WORKFLOW.md.*
+
 - Trained 2026-10-21 on Google Colab (free T4) with
   [pafernanr/custom-microwakeword-training-colab](https://github.com/pafernanr/custom-microwakeword-training-colab)
   wrapping [kahrendt/microWakeWord](https://github.com/kahrendt/microWakeWord).
@@ -62,6 +66,9 @@ NOTE: do NOT accept firmware updates on speakers still running stock
 Nabu Casa firmware pre-flash; stock updates would keep them on stock.
 
 ## Deploying to a Voice PE (manual / ESPHome Builder route)
+
+*History: the normal route is the flash page and OTA above. The `vivajot_help` example below is
+kept for reference; that model is not in the firmware.*
 
 1. In HA: ESPHome Builder -> adopt the Voice PE (takeover).
 2. In the device YAML add (merge with existing `micro_wake_word` block if the

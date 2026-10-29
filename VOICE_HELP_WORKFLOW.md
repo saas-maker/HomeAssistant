@@ -4,7 +4,8 @@ Companion to [VOICE_SYSTEM_ARCHITECTURE.md](VOICE_SYSTEM_ARCHITECTURE.md). This 
 step and branch of the help workflow **as implemented on 2026-10-23**, audits each branch
 against the design standard — *an untrained 85-year-old must always end up safe* — then
 lists every gap found and the redesigned flow. The AS-IS and gap sections are kept as
-history; the **v4 section at the end is what is built** (2026-10-28).
+history; the **v4 section at the end is what is built** (2026-10-28), and it passed its first
+live tests on a real speaker the same evening (results at the end of the v4 section).
 
 Design standard, restated as testable rules:
 - R1. If the resident needs help, help is summoned — even if they can only gasp a wake word.
@@ -161,7 +162,8 @@ A send that fails is always spoken: "I couldn't send the alert / that. Please us
 ### Incident state
 `timer.vivajot_help_active`, 2 h (the cloud incident window), `restore: true`. Started by every successful help send,
 cancelled by the all-clear. It only selects which question is asked and keeps the "told your
-caregiver" line truthful. The 10-minute mute timer and the automatic "Are you hurt?"
+caregiver" line truthful. After 2 h the speaker asks the plain "Do you need help?" again, and a
+new yes starts a new incident (24 h made it say "already notified" the next morning). The 10-minute mute timer and the automatic "Are you hurt?"
 follow-up are gone: a resident who wants to add something says "VivaJot" again.
 
 ### Hub automations (3)
@@ -202,6 +204,13 @@ notified") as the answer and the next line started at once. The hub now waits 1.
 first question, so the player is idle and the speaker waits for the question to really finish.
 A firmware-side fix (send the wake event after the chime ends) would remove the wait; not done.
 
+### The caregiver log (2026-10-28)
+Every help request stays in the app's Event Log under its own name, open or resolved, tagged
+"Resident said they're okay", "Marked safe" or "Marked false alarm". Before this, `api.ashx`
+returned only the newest resolved row and `default.js` retitled resolved rows "Marked Safe"
+and folded them into the hidden routine checks, so a request vanished once the resident said
+they were okay. The resident's later words ("my foot hurts") are appended to the same row.
+
 ### Known limits
 - "help" shouted without "VivaJot" does nothing. Teaching, a card by the speaker, and the
   phone/pendant are the mitigations.
@@ -209,12 +218,14 @@ A firmware-side fix (send the wake event after the chime ends) would remove the 
   its first word; "I fell" and "fell" variants are in the yes class.
 - The incident timer is per hub (single-speaker today).
 - Dashboard and push lag the speaker by ~15 s (BigQuery update time).
+- The question starts ~1.5 s after the wake word (the hub waits out the chime, see the timing
+  bug above). Firing the wake event after the chime, in firmware, would remove the wait.
 
 ### Timeline tests (real speaker)
 1. **False wake, someone present:** "VivaJot" → "Do you need help? Yes or no." → "no" →
    "Okay." Nothing on the phone or dashboard.
-2. **False wake, empty room:** "VivaJot" → question → silence → "Sorry, I didn't catch
-   that…" → silence → nothing more, nothing sent.
+2. **False wake, empty room:** "VivaJot" → question → silence → nothing more, nothing sent
+   (silence is not asked twice).
 3. **Real request:** "VivaJot" → question → "yes" → "I've notified your caregiver. Stay where
    you are." → push + hero within ~15 s. Logbook shows "VivaJot wake: vivajot".
 4. **Still needs help:** "VivaJot" → "Your caregiver has already been notified. Do you still
@@ -226,8 +237,21 @@ A firmware-side fix (send the wake event after the chime ends) would remove the 
    asks "…Do you still need help?" (within the 2 h incident window) → "yes" → words → a fresh alert.
 7. **Stop mid-question:** during any question, "VivaJot, stop" or "stop" → silence, no retry.
 8. **Soft voice:** whisper "yeah" / "nope" / "uh huh" from across the room; each must land.
-9. **Overnight:** alert at 11 PM, 3 AM restart, "VivaJot" at 7 AM → the "still need help"
-   question (timer restored).
+9. **Overnight:** alert at 2:30 AM, 3 AM restart, "VivaJot" at 3:15 AM → the "still need help"
+   question (timer restored). "VivaJot" at 7 AM → the plain "Do you need help?" (window over).
+
+### Live test results (2026-10-28 evening, Cary's speaker, firmware 26.10.28.1)
+| Test | Result |
+|---|---|
+| 3 Real request | Pass: "yes" → alert pushed with the resident's words |
+| 4 Still needs help | Pass: "my foot hurts", then "my foot still hurts and I can't play the banjo anymore" appended to the same incident with times |
+| 5 All-clear | Pass: incident marked Safe; the Event Log keeps the request tagged "Resident said they're okay" |
+| 1, 2, 6, 7, 8, 9 | Not yet run |
+
+Found and fixed during these tests: the speaker opened the mic mid-question (timing bug above),
+Google returned nothing for quiet one-word answers (speech-to-text section), the retry and
+"I can't hear you" lines rambled at an empty room, the active-alert question now says "already
+been notified", and the Event Log hid resolved help requests.
 
 ---
 

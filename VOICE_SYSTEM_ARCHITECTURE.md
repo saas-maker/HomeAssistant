@@ -1,8 +1,8 @@
 # VivaJot Voice Safety System — Architecture
 
-How a resident's spoken "Help help" becomes a caregiver alert, end to end: speaker firmware,
+How a resident's "VivaJot" and a spoken yes become a caregiver alert, end to end: speaker firmware,
 Home Assistant hub, Pub/Sub transport, Cloud Run, BigQuery, and the VivaJot dashboard.
-Written for engineering review (2026-10-23). Wake-word **training** is documented separately
+Written for engineering review (2026-10-23; updated 2026-10-28 for voice v4). Wake-word **training** is documented separately
 in [wakewords/README.md](wakewords/README.md) and
 [wakewords/HOW_TO_MAKE_NEW_WAKEWORDS.txt](wakewords/HOW_TO_MAKE_NEW_WAKEWORDS.txt).
 
@@ -68,7 +68,8 @@ model for the whole fleet, never per-house training.
 **Firmware behaviors added for VivaJot:**
 - Every wake fires a Home Assistant event `esphome.vivajot_wake_word` with `wake_word`,
   `device_name` and `ask: "true"`. The speaker plays its chime and does **not** start a local
-  command listen; the hub asks "Do you need help?" at once (see §2).
+  command listen; the hub asks "Do you need help?" about 1.5 s later, once the chime has
+  finished (see §2: asking during the chime makes the speaker open its mic mid-question).
 - A wake during an announcement stops playback; the hub's question follows from the event.
 - A 120 s watchdog restarts microWakeWord if the voice assistant pipeline wedges
   (fixes the "speaker goes permanently deaf after an error" failure).
@@ -93,7 +94,10 @@ Custom STT entity using Google Cloud Speech v1 with a `speechContexts` phrase bo
 20) over the emergency vocabulary; 12 s stream timeout. An **empty transcript returns
 SUCCESS with no text** (not ERROR): wake-only events are normal, and the firmware quietly
 ignores `stt-no-text-recognized`, whereas an STT error used to leave the speaker in a bad
-state.
+state. Before sending, quiet audio is raised toward a peak of 9000 (gain capped at 40x, near
+silence left alone) and 0.3 s of silence is added each side: without this Google returned
+nothing for soft one-word answers like "no" (2026-10-28). Each answer logs
+`VivaJot STT: audio 1.7s, peak 314 -> 9000` on the hub's Logs page.
 
 ### Shared timers — `configuration.yaml`
 | Timer | Duration | Meaning |
@@ -124,8 +128,9 @@ handler did not take the speech.
 
 **`vivajot_voice_help_confirm`** — the whole conversation. No alert active: *"Do you need
 help? Yes or no."* → yes: `viva_renamer.voice_alert` (intent `help`), then "I've notified
-your caregiver. Stay where you are."; no: "Okay."; stop: silence; unclear: asked once more,
-then silence. Alert active: *"Your caregiver has already been notified. Do you still need help? Yes
+your caregiver. Stay where you are."; no: "Okay."; stop: silence; words that are not an
+answer: asked once more ("Sorry, I didn't catch that. Yes or no?"); silence: nothing more.
+It first waits 1.5 s so the wake chime has finished. Alert active: *"Your caregiver has already been notified. Do you still need help? Yes
 or no."* → no / okay class: intent `okay` with `notify: true`, "Okay, I've told your
 caregiver you're okay."; yes: *"Tell me what's wrong."*, their words sent with intent
 `help`, "Okay, I've sent that to your caregiver." Every send failure is spoken ("…Please use
@@ -212,8 +217,9 @@ title/body), and records sends in `Push_Notification_History` for dedup.
 ## 6. The dashboard (VivaJot plugin: `api.ashx` + `js/default.js`)
 
 `HandleGetSmartAlerts` (api.ashx) queries `AI_Risk_Scores` (30-day window, max 500 rows)
-with display dedup: all open risks, plus only the newest native-safe row and the newest
-marked-safe row. Per row it computes:
+with display dedup: every real alert (risk_id ≠ 0), open or resolved, plus only the newest
+native-safe row. (Until 2026-10-28 it kept only the newest resolved row, which made a
+resident's help request vanish after "I'm okay".) Per row it computes:
 - **Title**: `CASE WHEN risk_id = 999 THEN 'Resident Requested Help!' ELSE risk_name END`
   (new rows already carry the right name).
 - **Marked-safe text**: title + " was marked safe. " + reasoning (so a voice-cleared row
@@ -225,7 +231,9 @@ marked-safe row. Per row it computes:
 So an open help request **stays pinned in the hero** through the AI's routine scoring
 cycles until a caregiver triages it or the resident says "I'm okay" — this fixed the bug
 where a "RESIDENT LIKELY SAFE" row two minutes later displaced the emergency. The Event
-Log renders the same list in time order and is unaffected by pinning.
+Log renders the same list in time order and is unaffected by pinning. Help requests and
+resolved alerts are never folded into the collapsed routine checks: each shows under its own
+title with its outcome ("Resident said they're okay", "Marked safe", "Marked false alarm").
 
 `api.ashx` also hosts the older `voice_alert` endpoint (used by Alexa): help → 99
 "Resident Requested Help!" score 95; okay → 0 "Resident Likely Safe"; coaching_update →
@@ -257,7 +265,7 @@ Log renders the same list in time order and is unaffected by pinning.
 1. **False wakes (ACTIVE).** Fixed on the alert side: nothing is sent without a yes (v4,
    2026-10-28). Still open on the wake side: the deployed `vivajot` model false-wakes ~9/h
    on dinner-party audio at 0.75 (8/h at the shipped 0.80). Each false wake costs one
-   question and one retry. Next step is a properly trained VivaJot model for the whole fleet
+   question (silence is not asked twice). Next step is a properly trained VivaJot model for the whole fleet
    (see the measurements in [VOICE_HELP_WORKFLOW.md](VOICE_HELP_WORKFLOW.md)); the Logbook
    wake lines give the real per-room counts to judge it by.
 2. **"Unknown intent HassLawnMowerDock" spoken to a resident.** When speech matches none of
