@@ -10,6 +10,7 @@ the device until the wake word fires (important for health-facility privacy).
 | `help_help.*` | "Help Help" — retired 2026-10-28 (missed 16% of clean synthetic clips) |
 | `somebody_help.*` | "Somebody Help" — trained 2026-10-28, measured, NOT shipped (false-wakes 7/h on conversation) |
 | `vivajot_help.*` | "VivaJot Help" — never used |
+| `retrain/` | The VivaJot retrain: plan, Colab notebook, and the bench that compares models |
 | `firmware/` | Built firmware images + OTA/flash manifests (what the speakers install) |
 | `firmware-config/` | The ESPHome YAML the firmware was built from |
 
