@@ -1757,9 +1757,20 @@ micro_wake_word:
   vad:
   on_wake_word_detected:
     # If the wake word is detected when the device is muted (Possible with the software mute switch): Do nothing
+    # VivaJot: also do nothing while the mic is already listening for an answer. A TV restarted
+    # the question over and over this way (live log 2026-10-30). "VivaJot stop" still works:
+    # the hub takes it as an answer. The wake word stays live while the speaker is talking.
     - if:
         condition:
-          switch.is_off: master_mute_switch
+          and:
+            - switch.is_off: master_mute_switch
+            - not:
+                and:
+                  - voice_assistant.is_running:
+                  - switch.is_off: timer_ringing
+                  - lambda: |-
+                      return id(voice_assistant_phase) == ${voice_assist_waiting_for_command_phase_id} ||
+                             id(voice_assistant_phase) == ${voice_assist_listening_for_command_phase_id};
         then:
           # VivaJot: report every wake word to Home Assistant as an event so
           # help alerts can fire even when the STT pipeline is broken.
