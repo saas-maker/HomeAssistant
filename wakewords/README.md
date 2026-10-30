@@ -6,7 +6,7 @@ the device until the wake word fires (important for health-facility privacy).
 
 | File | What it is |
 |------|------------|
-| `vivajot.tflite` / `vivajot.json` | "VivaJot" — the ONLY wake word in firmware 26.10.28.1+ (cutoff 0.80) |
+| `vivajot.tflite` / `vivajot.json` | "VivaJot" — the ONLY wake word in firmware 26.10.28.1+ (cutoff 0.90 from 26.10.30.1) |
 | `help_help.*` | "Help Help" — retired 2026-10-28 (missed 16% of clean synthetic clips) |
 | `somebody_help.*` | "Somebody Help" — trained 2026-10-28, measured, NOT shipped (false-wakes 7/h on conversation) |
 | `vivajot_help.*` | "VivaJot Help" — never used |

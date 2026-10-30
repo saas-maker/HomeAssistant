@@ -181,7 +181,12 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
   reaches the pipeline: stop, the okay class (all-clear), or the question. Nothing falls
   through to Home Assistant's built-in intents.
 
-### Firmware 26.10.28.2 (built 2026-10-28; not yet tested on a speaker)
+### Firmware 26.10.30.1 (2026-10-30)
+- `vivajot` cutoff raised from 0.80 to 0.90 after false wakes continued during conversation.
+  Window stays 5, the stock value (stock Hey Jarvis is 0.97 / 5, but on a different scale). Effect on
+  real calls is unmeasured: check soft "VivaJot"s from across the room; fall back to 0.85 if missed.
+
+### Firmware 26.10.28.2 (built 2026-10-28)
 - **The center button is a wake word.** A single press plays the same chime and fires the same
   `esphome.vivajot_wake_word` event (`wake_word: "button"`, `ask: "true"`), so the hub asks
   "Do you need help? Yes or no." A press is deliberate, so a TV can never cause one. It never sends
@@ -199,7 +204,7 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
   gets the same build over the air.
 
 ### Firmware 26.10.28.1
-- Models: `vivajot` only (`probability_cutoff` 0.80, `sliding_window_size` 5). `help_help`,
+- Models: `vivajot` only (`probability_cutoff` 0.80 in this build, 0.90 from 26.10.30.1; `sliding_window_size` 5). `help_help`,
   `vivajot_help` and `somebody_help` are not in the firmware.
 - On wake: chime, fire `esphome.vivajot_wake_word` with `ask: "true"`, and do **not** start
   the local command listen. A wake during an announcement stops the announcement.
@@ -307,7 +312,7 @@ What it says:
   negatives, no sound-alike phrases, and the notebook's AudioSet download is silently empty.
 - Reference: Nabu Casa's `okay_nabu` is 0.000 FAPH on DipCo at 0.85.
 
-Decision: **VivaJot only, cutoff 0.80**, question on wake, big yes/no lists. The Logbook now
+Decision (raised to 0.90 on 2026-10-30): **VivaJot only, cutoff 0.80**, question on wake, big yes/no lists. The Logbook now
 records every wake with its word, so the next cutoff change is made from real counts, not
 from guesses. Next (one model for the whole fleet, done once): retrain VivaJot with the full
 recipe (many more voices, sound-alike negatives, working noise sets, false-accept check

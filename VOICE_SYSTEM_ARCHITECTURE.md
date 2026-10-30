@@ -45,7 +45,7 @@ in [wakewords/README.md](wakewords/README.md) and
 ## 1. The speaker (ESPHome firmware)
 
 Hardware: Home Assistant Voice Preview Edition (ESP32-S3). Firmware is a VivaJot fork of
-the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.10.28.2**.
+the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.10.30.1**.
 
 **Privacy model.** Wake-word detection is 100 % on-device (microWakeWord). No audio leaves
 the room until a wake word fires — required for health-facility deployments. Only after a
@@ -55,7 +55,7 @@ wake does the speaker send audio to the hub, and only while the hub is asking it
 
 | Model | Purpose | Probability cutoff |
 |---|---|---|
-| `vivajot` ("VivaJot") | The only wake word (listed first, so enabled by default) | 0.80 (window 5) |
+| `vivajot` ("VivaJot") | The only wake word (listed first, so enabled by default) | 0.90 (window 5) |
 | `stop` (stock) | Interrupts TTS playback locally, enabled only during announcements | stock |
 
 Retired (files kept in `wakewords/`, not in firmware): `help_help` (quiet but missed 16% of
@@ -267,7 +267,7 @@ title with its outcome ("Resident said they're okay", "Marked safe", "Marked fal
 
 1. **False wakes (ACTIVE).** Fixed on the alert side: nothing is sent without a yes (v4,
    2026-10-28). Still open on the wake side: the deployed `vivajot` model false-wakes ~9/h
-   on dinner-party audio at 0.75 (8/h at the shipped 0.80). Each false wake costs one
+   on dinner-party audio at 0.75 (8/h at 0.80, 3/h at 0.95; 0.90 shipped 2026-10-30). Each false wake costs one
    question (silence is not asked twice). Next step is a properly trained VivaJot model for the whole fleet
    (see the measurements in [VOICE_HELP_WORKFLOW.md](VOICE_HELP_WORKFLOW.md)); the Logbook
    wake lines give the real per-room counts to judge it by.
