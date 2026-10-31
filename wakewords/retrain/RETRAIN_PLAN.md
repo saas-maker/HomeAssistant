@@ -58,6 +58,25 @@ talk audio as negatives at all, and more training on the same data makes false w
 full recipe (talk negatives and hard-negative mining) is the next step. Note: Colab is now on
 Python 3.13, so `piper-phonemize-cross` no longer installs and is not needed.
 
+## Verified 2026-10-31: the chatter IS used in training
+
+Checked with the trainer's own code (microWakeWord 4665173, FeatureHandler) on a fresh Colab machine,
+with the deployed recipe's weights (VivaJot 2, speech 10, dinner party 10, no-speech 5):
+
+| Set | Clips loaded | Hours |
+|---|---|---|
+| chatter: speech (LibriSpeech/VOiCES, 3 mic distances) | 350,535 | 486.9 |
+| chatter: dinner party (CHiME-6) | 58,307 | 81.0 |
+| noise, no speech (FMA, FSD50K, WHAM) | 238,441 | 331.2 |
+
+Ten real training batches (1,280 samples) drew 40% from speech, 35% from dinner party, 17% from noise,
+7% VivaJot. So "the model never heard conversation" is wrong: three quarters of every batch is chatter.
+The simple run (same chatter, 5x longer training) doubled false wakes, so neither more chatter nor
+longer training is the lever. Untested levers, one per ~1 h run: many more voices saying the word
+(hundreds, not 18), sound-alike phrases as negatives, a higher false-alarm penalty, and choosing the
+saved snapshot by false alarms on held-out talk. Deployed hears trained voices 96-100% but new voices
+82%: it has memorised the 18 voices.
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
