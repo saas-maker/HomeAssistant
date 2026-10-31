@@ -99,6 +99,22 @@ Verdict FAIL (hears worse than deployed), but this is the first change that move
 heard once, so the model has too few examples of the word. Test 2: same recipe, same 900 speakers,
 more clips (about 5,000), to see whether hearing comes back without the false wakes.
 
+## Test 2, 2026-10-31: 900 voices, 5,000 clips. Hears very well, false wakes worse than deployed.
+
+`vivajot_voices2.ipynb`: test 1 with 5,000 clips instead of 900. Same bench.
+
+| | False wakes/h at 0.90 | normal | soft | very soft |
+|---|---|---|---|---|
+| deployed | 22.2 | 82% | 80% | 45% |
+| test 1 (900 clips) | 0.9 | 48% | 40% | 1% |
+| test 2 (5,000 clips) | 76.7 | 89% | 86% | 72% |
+
+So more clips restore hearing (the best hearing measured so far, 72% on very soft voices) but false
+wakes go to 77/h, worse than deployed. Test 1 and 2 bracket the answer: the word is learnable from
+these voices, and the trainer kept the most trigger-happy snapshot because, like the deployed recipe,
+it picks the snapshot by hearing alone with no false-alarm check. Test 3: test 2 plus the snapshot
+chosen by false alarms per hour on 2 h of held-out talk (the author's recommended mechanism).
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
