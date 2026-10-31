@@ -77,6 +77,28 @@ longer training is the lever. Untested levers, one per ~1 h run: many more voice
 saved snapshot by false alarms on held-out talk. Deployed hears trained voices 96-100% but new voices
 82%: it has memorised the 18 voices.
 
+## Test 1, 2026-10-31: 900 voices instead of 18. False wakes nearly gone, hearing halved.
+
+`vivajot_voices.ipynb`: the deployed recipe exactly (900 clips, 1500 ms, weight 20, 10k steps, music
+behind the word, best_weights) with ONE change: the 900 clips come from about 900 LibriTTS-R speakers
+at several paces instead of 18 Piper voices. Free T4, 55 minutes. Same bench as before.
+
+| False wakes per hour | 0.50 | 0.70 | 0.80 | 0.90 | 0.95 | 0.97 |
+|---|---|---|---|---|---|---|
+| deployed | 59.2 | 41.6 | 34.1 | 22.2 | 15.5 | 13.1 |
+| test 1 (900 voices) | 4.3 | 2.7 | 2.4 | 0.9 | 0.6 | 0.6 |
+
+| Hears a new voice (recall) | normal | quiet | soft | very soft |
+|---|---|---|---|---|
+| deployed at 0.90 | 78% | 77% | 79% | 49% |
+| test 1 at 0.90 | 48% | 47% | 40% | 1% |
+| test 1 at 0.50 | 54% | 55% | 47% | 8% |
+
+Verdict FAIL (hears worse than deployed), but this is the first change that moved false wakes at all:
+25x fewer at 0.90. The cost is hearing, which halved. With 900 clips over 900 speakers each voice is
+heard once, so the model has too few examples of the word. Test 2: same recipe, same 900 speakers,
+more clips (about 5,000), to see whether hearing comes back without the false wakes.
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
