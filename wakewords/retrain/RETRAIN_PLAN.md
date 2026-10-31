@@ -41,6 +41,23 @@ Voices it did train on score 96-100%, so it has learned those voices and not the
 No cutoff fixes this: the strictest still false-wakes 19/h, and lowering it barely adds recall.
 These are synthetic voices. Real elderly voices have never been measured.
 
+## Simple run, 2026-10-30: FAIL
+
+`vivajot_simple.ipynb`: the old recipe (18 en_US voices x 250, 1500 ms, weight 20, 10k steps) with only
+two fixes, household noise present and the end-of-training weights exported. Free T4, about 1 hour.
+Bench on 6.72 h of People's Speech talk, 32 unseen British clips in 3 rooms:
+
+| False wakes per hour | 0.50 | 0.70 | 0.80 | 0.90 | 0.95 | 0.97 |
+|---|---|---|---|---|---|---|
+| deployed | 59.2 | 41.6 | 34.1 | 22.2 | 15.5 | 13.1 |
+| simple retrain | 96.8 | 70.8 | 59.0 | 44.6 | 36.0 | 28.6 |
+
+Recall was the same as deployed within a few points at every level (normal 81-85%, very soft 43-59%).
+So the two fixes alone do not help: the old recipe's problem is not a missing file, it has no long
+talk audio as negatives at all, and more training on the same data makes false wakes worse. The
+full recipe (talk negatives and hard-negative mining) is the next step. Note: Colab is now on
+Python 3.13, so `piper-phonemize-cross` no longer installs and is not needed.
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
