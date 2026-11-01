@@ -136,6 +136,33 @@ found the least trigger-happy snapshot) but no snapshot in this run was both qui
 Next increments, one change each: a lower learning rate in the second half of training so the model
 settles instead of lurching, then more clips only once a settled run exists.
 
+## Test 4, 2026-11-01: slower second half. First model under 1 false wake/h. Hearing 5 points short.
+
+`vivajot_test4.ipynb`: test 3 plus ONE change, the learning rate drops 5x for the second half of training
+(verified from the `training_parameters.yaml` the trainer read: learning_rates 0.001, 0.0002). Run on a free
+CPU machine (GPU quota was used up); about 1 h training. Same bench. Model saved as
+`candidates/test4_vivajot.tflite` (not shipped).
+
+Trainer's own checks, false alarms per hour on held-out talk, steps 1,000 to 10,000:
+29, 85, 2.6, 87, 7.1, 24, 12, 20, 6.0, 16. It kept step 3,000 (2.6/h, 98% hearing on its own test clips).
+A first run of the same recipe (lost to a disconnect before the bench) gave 6.4, 3108, 3.0, 151, 8.3, 6.4,
+13.5, 8.3, 9.4, 16.5 and also kept step 3,000. Both runs: the slow half stays in a band of 6 to 24 instead
+of lurching to 200, but the best snapshot still comes early.
+
+| | False wakes/h at 0.90 | normal | quiet | soft | very soft |
+|---|---|---|---|---|---|
+| deployed | 22.2 | 80% | 80% | 78% | 45% |
+| test 3 | 2.1 | 41% | 52% | 64% | 4% |
+| test 4 | 0.6 | 75% | 75% | 74% | 10% |
+
+At cutoff 0.85: 0.9/h, hears 75% normal, 75% quiet, 75% soft, 11% very soft.
+
+Verdict FAIL by the rule (hears 3 to 5 points below deployed at normal, quiet and soft), but this is the
+first model inside the false-wake limit at any cutoff, and its hearing barely moves with the cutoff
+(75% from 0.50 to 0.90), so it is confident on the voices it hears and deaf to the rest. The gap is
+very soft voices: 10% against 45%. Next increments, one each: more clips (test 2 showed clips drive
+hearing) with the settled training; then quieter, slower clips in the training set for the very soft level.
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
