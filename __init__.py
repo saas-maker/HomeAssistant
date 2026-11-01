@@ -342,7 +342,12 @@ async def process_command(hass, data, pub, path, req, inst):
         _LOGGER.warning(f"VivaJot: Health report requested for {inst}")
         try:
             card = await build_health_card(hass)
-            confirm = {"inst_id": inst, "action_type": "HUB_HEALTH", "status": "SUCCESS", "action_request": card}
+            # Same field set as every other confirmation so the BigQuery row is complete.
+            # friendly_name carries "VivaJot" and location is "Unknown": the two filters the
+            # Devices tab already uses to hide system rows, so this never shows as a device.
+            confirm = {"inst_id": inst, "entity_id": "viva_renamer.hub_health", "action_type": "HUB_HEALTH",
+                       "friendly_name": "VivaJot Hub Health", "location_name": "Unknown",
+                       "status": "SUCCESS", "action_request": card}
             await hass.async_add_executor_job(
                 lambda: pub.publish(path, json.dumps(confirm).encode("utf-8")).result(timeout=15)
             )
