@@ -115,6 +115,27 @@ these voices, and the trainer kept the most trigger-happy snapshot because, like
 it picks the snapshot by hearing alone with no false-alarm check. Test 3: test 2 plus the snapshot
 chosen by false alarms per hour on 2 h of held-out talk (the author's recommended mechanism).
 
+## Test 3, 2026-11-01: snapshot chosen by false alarms. False wakes 2/h, hearing worse than deployed.
+
+`vivajot_test3.ipynb`: test 2 plus ONE change, the trainer keeps the snapshot with the fewest false
+alarms on 2 h of held-out talk (checked every 1,000 steps). Same bench.
+
+What the trainer printed, false alarms per hour on the held-out talk at each check (steps 1,000 to 10,000):
+96, 32, 162, 134, 51, 7.9, 9.4, 29, 78, 199. It kept step 6,000 (7.9/h, hearing 60% on its own test clips).
+The number bounces by 20x from one check to the next, so the model is not settling; it is lurching.
+
+| | False wakes/h at 0.90 | normal | soft | very soft |
+|---|---|---|---|---|
+| deployed | 22.2 | 76% | 75% | 43% |
+| test 2 (first snapshot) | 76.7 | 89% | 86% | 72% |
+| test 3 (snapshot by false alarms) | 2.1 | 41% | 64% | 4% |
+
+Verdict FAIL: false wakes 10x better than deployed but still above the 1/h limit at every cutoff
+(1.5/h at 0.97), and hearing is worse than deployed at every level. The picker works as a picker (it
+found the least trigger-happy snapshot) but no snapshot in this run was both quiet and sharp-eared.
+Next increments, one change each: a lower learning rate in the second half of training so the model
+settles instead of lurching, then more clips only once a settled run exists.
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
