@@ -361,6 +361,23 @@ async def process_command(hass, data, pub, path, req, inst):
             _LOGGER.error(f"VivaJot: Health report FAILED on {inst}: {e}")
         return
 
+    # --- HELP RESOLVED (Nov 2 2026) ---
+    # "Mark safe" in the app and a spoken "no, I'm okay" must mean the same thing.
+    # The hub keeps timer.vivajot_help_active while an alert is open; only the voice
+    # path used to cancel it, so a resident marked safe by phone still heard
+    # "Your caregiver has already been notified" for up to 2 hours (Cary, 2026-11-02).
+    # The cloud publishes this when an incident is resolved by any means:
+    #   Topic: vivajot-setup   Body: {"command": "help_resolved", "installation_id": "<HUB>"}
+    if command == "help_resolved":
+        try:
+            await hass.services.async_call(
+                "timer", "cancel", {"entity_id": "timer.vivajot_help_active"}, blocking=True
+            )
+            _LOGGER.warning(f"VivaJot: Help marked resolved for {inst}; speaker back to 'Do you need help?'")
+        except Exception as e:
+            _LOGGER.error(f"VivaJot: help_resolved failed on {inst}: {e}")
+        return
+
     if command == "permit_join":
         duration = min(data.get("duration", 60), 254)
         _LOGGER.info(f"VivaJot: Permitting Zigbee devices to join for {duration} seconds...")

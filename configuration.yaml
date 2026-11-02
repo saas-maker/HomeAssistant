@@ -59,7 +59,8 @@ google_pubsub:
 # dead radio at 3 reboot attempts instead of an endless reboot loop.
 # --- VOICE INCIDENT STATE & MUTE ---
 timer:
-  # Started when a help alert is sent, cancelled by "I'm okay". While it runs the
+  # Started when a help alert is sent, cancelled by "I'm okay" or by the cloud's
+  # help_resolved command (Mark Safe in the app; see __init__.py). While it runs the
   # speaker says "Your caregiver has already been notified. Do you still need help?"
   # 2 h matches the cloud's incident window (a new "help" within 2 h joins the same
   # incident). Longer made the speaker say "already notified" the next morning
