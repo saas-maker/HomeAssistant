@@ -12,7 +12,12 @@ model. The bench picks the most sensitive cutoff that meets the limit.
 2. Runtime -> Change runtime type -> T4 GPU.
 3. Optional, in Google Drive folder `vivajot_retrain/`: put the talk podcast in `my_audio/`, and phone
    recordings of real people saying VivaJot softly in `real_vivajot/`.
-4. Runtime -> Run all. About 4 hours. A paid Colab plan avoids disconnects.
+4. Runtime -> Run all. About 4 hours. Free Colab drops the runtime after a while (twice in one afternoon
+   on 2026-11-01), and everything on its disk is lost. From test 5 on, the notebooks work inside a Google
+   Drive folder: click Allow on the Drive prompt once, and after a drop just Run all again; finished steps
+   are skipped. Clicking in the page every 15 minutes keeps the runtime from idling out. Drive is slower
+   than local disk (the features step took about 50 minutes instead of 40), and it cannot hold links,
+   so the room-echo files are copied instead of linked.
 5. The last cell prints PASS or FAIL and saves `vivajot.tflite`, `vivajot.json` and `bench.md` to Drive.
 
 On PASS: the model goes into `wakewords/`, firmware is rebuilt, Cary flashes his speaker and checks
@@ -162,6 +167,13 @@ first model inside the false-wake limit at any cutoff, and its hearing barely mo
 (75% from 0.50 to 0.90), so it is confident on the voices it hears and deaf to the rest. The gap is
 very soft voices: 10% against 45%. Next increments, one each: more clips (test 2 showed clips drive
 hearing) with the settled training; then quieter, slower clips in the training set for the very soft level.
+
+## Test 5, 2026-11-01: 10,000 clips with the settled training. Running.
+
+`vivajot_test5.ipynb`: test 4 plus ONE change, 10,000 clips instead of 5,000 (test 2 showed clip count is
+what moves hearing). First attempt on a free CPU runtime was lost to a disconnect after 90 minutes, before
+training finished. Rerun on a T4 GPU with the notebook working in Google Drive folder `vivajot_test5/`, so
+a second drop would resume instead of restart. Results go here when the bench prints.
 
 ## What went wrong before
 
