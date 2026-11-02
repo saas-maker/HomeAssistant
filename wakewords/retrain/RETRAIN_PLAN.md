@@ -168,12 +168,41 @@ first model inside the false-wake limit at any cutoff, and its hearing barely mo
 very soft voices: 10% against 45%. Next increments, one each: more clips (test 2 showed clips drive
 hearing) with the settled training; then quieter, slower clips in the training set for the very soft level.
 
-## Test 5, 2026-11-01: 10,000 clips with the settled training. Running.
+## Test 5, 2026-11-01: 10,000 clips. Same as test 4. FAIL.
 
-`vivajot_test5.ipynb`: test 4 plus ONE change, 10,000 clips instead of 5,000 (test 2 showed clip count is
-what moves hearing). First attempt on a free CPU runtime was lost to a disconnect after 90 minutes, before
-training finished. Rerun on a T4 GPU with the notebook working in Google Drive folder `vivajot_test5/`, so
-a second drop would resume instead of restart. Results go here when the bench prints.
+`vivajot_test5.ipynb`: test 4 plus ONE change, 10,000 clips instead of 5,000 (verified from the trainer's
+`training_parameters.yaml`: training_steps 5000, 5000; learning_rates 0.001, 0.0002; class weights 1/20).
+Three runs were lost to free-Colab drops (two idle CPU runtimes, then the free GPU allowance ran out 10
+minutes into training). The run that finished: clips and features generated on a T4, then CPU training
+on a fresh runtime from the copies kept in Google Drive. Model saved as `candidates/test5_vivajot.tflite`
+(not shipped).
+
+Trainer's own checks, false alarms per hour on held-out talk, steps 1,000 to 10,000:
+55, 88, 131, 48, 576, 12, 2.6, 9.8, 24, 20. It kept step 7,000 (2.6/h, 98% hearing on its own test clips).
+
+| | False wakes/h at 0.90 | normal | quiet | soft | very soft |
+|---|---|---|---|---|---|
+| deployed | 22.2 | 81% | 80% | 73% | 41% |
+| test 4 | 0.6 | 75% | 75% | 74% | 10% |
+| test 5 | 1.6 | 78% | 78% | 71% | 18% |
+
+Inside the limit, test 5 needs cutoff 0.97: 0.9/h, hears 77% normal, 75% quiet, 70% soft, 10% very soft.
+That is test 4's result within a clip or two (96 bench clips, so 1 clip = 1 point). Verdict FAIL by the
+rule (3 to 6 points below deployed at normal, quiet, soft).
+
+What this says: doubling the clips did not move hearing. Tests 4 and 5 both land at 75 to 78% normal and
+10% very soft once false wakes are held under 1/h. The deployed model's extra hearing comes with 22
+false wakes/h; so far every model that is quiet on talk is also 3 to 5 points deafer on normal voices and
+far deafer on very soft ones.
+
+Where the very soft gap may come from (theory, not verified): training turns clips down by a random 0 to
+45 dB (microWakeWord's default `min_gain_db=-45`), and the bench's very soft level sits at about -49 dB
+below full scale, just outside what training ever hears. Next increment, ONE change: training gain floor
+-60 dB. If that does not move very soft hearing, the next is real soft-voice recordings on the bench.
+
+Google Drive now holds the test 5 clips and features in `vivajot_test5/`, about 32 GB on Cary's shared
+plan. Optional cleanup once a model ships: the `out/` folder and `pos_all/` (the clips, about 1 GB) are
+the only parts worth keeping.
 
 ## What went wrong before
 
