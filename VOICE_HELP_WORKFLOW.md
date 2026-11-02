@@ -141,10 +141,6 @@ notified. Do you still need help? Yes or no."
 | yes class | "Tell me what's wrong." → whatever they say → "Okay, I've sent that to your caregiver." | their words added to the same incident, caregiver pushed |
 | stop | silence | nothing |
 | unclear | asked once more, as above | nothing |
-| nothing understood (silence, or still unclear after the retry) | "I didn't hear a yes or no, so nothing was changed." | nothing; the alert stays open |
-
-While an alert is active the flow never ends in silence: a soft "no" that speech-to-text returns
-as nothing used to end silently, and the resident took it as accepted (Cary, 2026-11-02).
 
 A send that fails is always spoken: "I couldn't send the alert / that. Please use your phone."
 

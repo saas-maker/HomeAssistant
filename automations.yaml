@@ -306,7 +306,6 @@
 #    no  -> silent      stop -> silent     unclear twice -> silent, nothing sent
 # Alert active:     "Your caregiver has already been notified. Do you still need help? Yes or no."
 #    no  -> all-clear -> "Okay, I've told your caregiver you're okay."
-#    no answer understood -> "I didn't hear a yes or no, so nothing was changed."
 #    yes -> "Tell me what's wrong." -> their words go to the caregiver
 #           -> "Okay, I've sent that to your caregiver."
 # Every spoken line is only said after the send actually succeeded.
@@ -602,19 +601,6 @@
                     message: "I couldn't send that. Please use your phone."
                     preannounce: false
 
-        # Alert active but no yes/no was understood (often a soft "no" that speech-to-text returned
-        # as nothing): never end in silence here, or the resident thinks their "no" was taken
-        # (Cary, 2026-11-02). Nothing is cleared without a heard no.
-        - conditions: "{{ help_active and final_id not in ['yes', 'no', 'stop'] }}"
-          sequence:
-            - action: assist_satellite.announce
-              continue_on_error: true
-              target:
-                entity_id: "{{ sat_entity }}"
-              data:
-                message: "I didn't hear a yes or no, so nothing was changed."
-                preannounce: false
-
-      # No alert active, unclear twice or silence (a false wake in an empty room): nothing more is
-      # said and nothing is sent. A silent answer is the normal false-wake case.
+      # Unclear twice, or silence (a false wake in an empty room): nothing more is said and
+      # nothing is sent. No "I can't hear you" line: a silent answer is the normal false-wake case.
       default: []
