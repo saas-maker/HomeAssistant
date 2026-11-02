@@ -204,6 +204,37 @@ Google Drive now holds the test 5 clips and features in `vivajot_test5/`, about 
 plan. Optional cleanup once a model ships: the `out/` folder and `pos_all/` (the clips, about 1 GB) are
 the only parts worth keeping.
 
+## Test 6, 2026-11-02: training gain floor -60 dB. Very soft hearing tripled, normal hearing dropped. FAIL.
+
+`vivajot_test6.ipynb`: test 5 plus ONE change, training turns clips down by up to 60 dB instead of 45
+(features made again with `min_gain_db=-60`; verified: the features cell ran 7 minutes instead of being
+skipped; trainer yaml unchanged from test 5). Run on the same CPU runtime from the test 5 clips. Model
+saved as `candidates/test6_vivajot.tflite` (not shipped).
+
+Trainer's own checks, false alarms per hour on held-out talk, steps 1,000 to 10,000:
+35, 3.4, 9.8, 6.0, 132, 7.9, 18.8, 10.5, 48, 0.0. It kept step 10,000 (0.0/h, 98.6% hearing on its own test clips).
+
+| | False wakes/h at 0.90 | normal | quiet | soft | very soft |
+|---|---|---|---|---|---|
+| deployed | 22.2 | 81% | 80% | 73% | 41% |
+| test 5 | 1.6 | 78% | 78% | 71% | 18% |
+| test 6 | 0.1 | 52% | 57% | 66% | 15% |
+
+Inside the limit test 6 can run at cutoff 0.50: 0.6/h, hears 64% normal, 65% quiet, 69% soft, 34% very soft.
+Verdict FAIL by the rule (normal and quiet 15 points below deployed).
+
+What this says: the gain floor is a real lever for very soft voices (10% to 34%, deployed is 41%), the first
+thing that has moved that number. But the kept snapshot is the deafest one, and that is the picker's doing,
+not the gain change. Verified in the trainer's `train.py`: its "false alarms per hour" is measured at cutoff
+0.5 only, and a snapshot competes on hearing only once it is under `target_minimization` (1.0/h); until
+then the trainer keeps whichever has the fewest false alarms. In test 6 only step 10,000 got under 1.0/h, so
+it was forced, and its probabilities are so low that even cutoff 0.50 gives 0.6/h on the bench. Steps 2,000
+(3.4/h at cutoff 0.5) and 4,000 (6.0/h) were never eligible, though tests 4 and 5 showed a snapshot at
+2.6/h at cutoff 0.5 lands at about 1/h on the bench at cutoff 0.90 to 0.97.
+
+Next increment, ONE change: `target_minimization` 3.0 instead of 1.0, so the picker can choose the
+best-hearing snapshot among those near the limit and the bench's cutoff does the rest. Same features as test 6.
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
