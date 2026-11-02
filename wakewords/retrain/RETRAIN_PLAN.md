@@ -286,6 +286,48 @@ and the kept snapshot was the last one, with false alarms still falling (6.0 the
 verified: the slow half had not finished settling. Next increment, ONE change: the slow half runs 10,000
 steps instead of 5,000 (15,000 total, about 2.5 hours on a free CPU runtime).
 
+## Test 9, 2026-11-02: 10,000-step slow half. Best hearing of any model, but over the false-wake limit. FAIL.
+
+`vivajot_test9.ipynb`: test 8 plus ONE change, training_steps 5,000 then 10,000 (verified from the trainer's
+yaml). Same features. Run on the same CPU runtime, about 2.5 hours. Model saved as `candidates/test9_vivajot.tflite`
+(not shipped).
+
+Trainer's own checks, false alarms per hour on held-out talk at cutoff 0.5, steps 1,000 to 15,000:
+4.9, 4.5, 44, 1.9, 30, 5.3, 11.3, 32, 6.8, 13.5, 10.5, 15.0, 4.1, 15.8, 12.8. It kept step 9,000 (6.8/h): with the
+target at 8.0 the picker preferred this looser snapshot for its hearing over step 4,000 (1.9/h).
+
+| | False wakes/h at 0.90 | normal | quiet | soft | very soft |
+|---|---|---|---|---|---|
+| deployed | 22.2 | 81% | 80% | 73% | 41% |
+| test 8 | 1.0 | 77% | 75% | 75% | 44% |
+| test 9 | 1.8 | 77% | 78% | 78% | 50% |
+
+At cutoff 0.97 test 9 is at 1.0/h (just over the limit, so the bench picks nothing) and hears 76% normal,
+77% quiet, 77% soft, 42% very soft: within 1 to 3 points of deployed on normal and quiet and better on soft and
+very soft. Verdict FAIL: no cutoff meets the limit.
+
+What this says: the longer slow half did not settle the false alarms (they still swing 4 to 32/h between
+checks), and a target of 8.0 lets the picker choose a snapshot too loose for the bench. Test 8 stays the best
+model that meets the limit.
+
+## Where this stands after nine tests, 2026-11-02
+
+Five changes that each moved a measured number, all kept: about 900 synthetic voices instead of 18 (test 1);
+the snapshot chosen by false alarms on held-out talk (test 3); a 5x slower second half (test 4); training gain
+down to -60 dB so the model hears very soft words (test 6); and a snapshot target of 3 to 8/h so the picker can
+choose on hearing (tests 7 and 8). Two changes that did not: 5,000 or 10,000 clips instead of 900 (tests 2 and 5),
+and a longer slow half (test 9).
+
+Best candidate: `candidates/test8_vivajot.tflite` at cutoff 0.95: 0.4 false wakes/h (deployed: 22), hears 76%
+normal, 75% quiet, 74% soft, 36% very soft (deployed at its own 0.90: 81, 80, 73, 41). It trails the deployed
+model by 4 to 5 bench clips out of 96 on normal and quiet voices and beats it on soft ones, with 50x fewer
+false wakes. No model has passed the rule as written. The remaining gap is at the size of the bench's own noise
+(1 point = 1 clip), so the next evidence that matters is real: flash test 8 on Cary's speaker and listen with
+real voices at normal and soft levels, before any more synthetic tuning.
+
+Google Drive folder `vivajot_test5/` (about 32 GB) can be deleted once a model ships; keeping `pos_all/`
+(the clips, about 1 GB) saves 15 minutes on a future run.
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
