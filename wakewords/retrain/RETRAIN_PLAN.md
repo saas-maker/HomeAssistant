@@ -235,6 +235,32 @@ it was forced, and its probabilities are so low that even cutoff 0.50 gives 0.6/
 Next increment, ONE change: `target_minimization` 3.0 instead of 1.0, so the picker can choose the
 best-hearing snapshot among those near the limit and the bench's cutoff does the rest. Same features as test 6.
 
+## Test 7, 2026-11-02: snapshot target 3.0/h. Best model so far: very soft 47%, normal 72%. FAIL.
+
+`vivajot_test7.ipynb`: test 6 plus ONE change, `target_minimization` 3.0 instead of 1.0 (verified from the
+trainer's yaml). Same features as test 6 (gain floor -60 dB). Run on the same CPU runtime. Model saved as
+`candidates/test7_vivajot.tflite` (not shipped).
+
+Trainer's own checks, false alarms per hour on held-out talk at cutoff 0.5, steps 1,000 to 10,000:
+403, 190, 4.5, 77, 6.0, 5.6, 35, 1.5, 27, 35. It kept step 8,000 (1.5/h, 98% hearing on its own test clips).
+Again only one snapshot got under the target, so the picker still had no choice.
+
+| | False wakes/h at 0.90 | normal | quiet | soft | very soft |
+|---|---|---|---|---|---|
+| deployed | 22.2 | 81% | 80% | 73% | 41% |
+| test 6 | 0.1 | 52% | 57% | 66% | 15% |
+| test 7 | 0.4 | 65% | 69% | 69% | 31% |
+
+Inside the limit test 7 runs at cutoff 0.50: 0.7/h, hears 72% normal, 76% quiet, 74% soft, 47% very soft.
+Verdict FAIL by the rule (normal 9 points and quiet 4 points below deployed), but this is the first model
+that beats the deployed one on soft and very soft voices while staying under 1 false wake/h. For an
+85-year-old with a soft voice this model is better than what ships; for a normal voice it misses about
+1 call in 4 where the deployed model misses 1 in 5.
+
+Next increment, ONE change: `target_minimization` 8.0, so steps 3,000 (4.5/h), 5,000 (6.0), 6,000 (5.6) and
+8,000 (1.5) all compete on hearing. Risk, stated up front: a snapshot at 5 or 6/h at cutoff 0.5 may not get
+under 1/h on the bench at any cutoff; then the bench says so and test 7 stays the best.
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
