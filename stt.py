@@ -100,7 +100,7 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
                 "inst_id": self._install_id,
                 "entity_id": "stt.vivajot_voice_stt",
                 "action_type": "VOICE_STT",
-                "friendly_name": detail[:120],
+                "friendly_name": "VivaJot STT",   # fixed: one row name, not one per utterance
                 "location_name": "VoicePE",
                 "status": status,
                 "action_request": detail,
@@ -295,9 +295,11 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
                     if alts and "transcript" in alts[0]:
                         transcripts.append(alts[0]["transcript"])
                 text = " ".join(transcripts).strip()
-                _LOGGER.warning(f"VivaJot STT: Transcribed successfully -> '{text}'")
+                # Status only, never the words (Nov 1 2026): a resident's transcript was reaching
+                # BigQuery's device table (277 rows) and the HA log, which the hub report now ships.
+                _LOGGER.warning(f"VivaJot STT: Transcribed {len(text)} chars from {len(audio_bytes)} bytes")
                 await self.hass.async_add_executor_job(
-                    self._log_bq_sync, "SUCCESS", f"Heard: '{text}' ({len(audio_bytes)}b)"
+                    self._log_bq_sync, "SUCCESS", f"Heard {len(text)} chars ({len(audio_bytes)}b)"
                 )
                 # Empty transcript (silence / unclear speech) is NOT a failure:
                 # returning SUCCESS with no text lets the pipeline raise the

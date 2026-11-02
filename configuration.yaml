@@ -49,6 +49,9 @@ google_pubsub:
     exclude_entity_globs:
       - "*.unnamed*"
       - "binary_sensor.*_opening*"
+      # The smart speaker's LED ring is a light entity: every blink streamed as light activity
+      # (97 events in 30 days in CARYS-HOUSE, Nov 1 2026). Not a resident action.
+      - "light.*led_ring*"
 
 # --- ZHA WATCHDOG REBOOT BUDGET ---
 # Host reboots the ZHA watchdog has performed for the current radio incident.
