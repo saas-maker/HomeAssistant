@@ -181,6 +181,14 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
   reaches the pipeline: stop, the okay class (all-clear), or the question. Nothing falls
   through to Home Assistant's built-in intents.
 
+### Firmware 26.11.02.1 (2026-11-02)
+- **New `vivajot` model: retrain test 8, cutoff 0.95** (window 5). Bench (`wakewords/retrain/RETRAIN_PLAN.md`):
+  0.4 false wakes/h on held-out talk (old model: 22/h at 0.90); hears 76% normal, 75% quiet, 74% soft,
+  36% very soft (old: 81, 80, 73, 41). Each model has its own score scale: at 0.90 test 8 is 1.0/h with
+  about the same hearing, so 0.95 halves false wakes for about one bench clip.
+- It failed the bench rule by 4 to 5 clips out of 96 on normal and quiet voices; this build is the real-voice
+  check on Cary's speaker. Rollback: the old model is in `wakewords/retired/vivajot_2026-10-22.*`.
+
 ### Firmware 26.10.30.2 (2026-10-30)
 - **The wake word is ignored while the mic is listening for an answer.** Before this, a TV could
   re-trigger the wake mid-listen and restart the question, so one false wake became a loop.

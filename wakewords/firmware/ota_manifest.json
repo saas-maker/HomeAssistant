@@ -1,14 +1,14 @@
 {
   "name": "VivaJot Voice PE",
-  "version": "26.10.30.2",
+  "version": "26.11.02.1",
   "home_assistant_domain": "esphome",
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "ota": {
         "path": "voice-pe-vivajot.ota.bin",
-        "md5": "bfc36a3a34b8bbeb4b08d0faad3ec590",
-        "summary": "Wake word ignored while the speaker is listening for an answer, so a TV cannot restart the question over and over",
+        "md5": "ce98c2fe6bc70c069cb0e1dbbf00c033",
+        "summary": "Retrained VivaJot wake word (test 8, cutoff 0.95): far fewer false wakes from TV and conversation",
         "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
       }
     }

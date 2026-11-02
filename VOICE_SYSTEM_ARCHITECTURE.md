@@ -45,7 +45,7 @@ in [wakewords/README.md](wakewords/README.md) and
 ## 1. The speaker (ESPHome firmware)
 
 Hardware: Home Assistant Voice Preview Edition (ESP32-S3). Firmware is a VivaJot fork of
-the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.10.30.2**.
+the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.11.02.1**.
 
 **Privacy model.** Wake-word detection is 100 % on-device (microWakeWord). No audio leaves
 the room until a wake word fires — required for health-facility deployments. Only after a
@@ -57,15 +57,15 @@ up to two listens of about 15 s each. The wake word is ignored while a listen is
 
 | Model | Purpose | Probability cutoff |
 |---|---|---|
-| `vivajot` ("VivaJot") | The only wake word (listed first, so enabled by default) | 0.90 (window 5) |
+| `vivajot` ("VivaJot") | The only wake word (listed first, so enabled by default) | 0.95 (window 5) |
 | `stop` (stock) | Interrupts TTS playback locally, enabled only during announcements | stock |
 
 Retired (files kept in `wakewords/retired/`, not in firmware): `help_help` (quiet but missed 16% of
 clean synthetic clips), `vivajot_help` (never used), `somebody_help` (hears well but
 false-wakes 7×/h on conversation). The measurements and the decision are in
-[VOICE_HELP_WORKFLOW.md](VOICE_HELP_WORKFLOW.md). The deployed `vivajot` model is itself the
+[VOICE_HELP_WORKFLOW.md](VOICE_HELP_WORKFLOW.md). The original `vivajot` model (2026-10-22) was itself the
 main false-wake source (9/h on dinner-party audio at 0.75); the fix is one properly trained
-model for the whole fleet, never per-house training.
+model for the whole fleet, never per-house training. Firmware 26.11.02.1 ships the retrained one.
 
 **Firmware behaviors added for VivaJot:**
 - Every wake fires a Home Assistant event `esphome.vivajot_wake_word` with `wake_word`,
