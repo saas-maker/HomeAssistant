@@ -250,11 +250,15 @@ def setup(hass: HomeAssistant, config: dict):
                             f"VivaJot: Auto-configured Assist Pipeline '{pipeline.name}' "
                             f"with STT={desired_stt}, TTS={desired_tts}"
                         )
+                        # Own entity id and a dot-free name (Nov 1 2026): sent under the speaker's id with a
+                        # dotted name, this overwrote the speaker's registry row as "Pipeline Ready (stt" in
+                        # location "vivajot_voice_stt/tts", so the speaker looked assigned and the app showed
+                        # a phantom device. The engines go in action_request. viva_renamer.* rows are hidden.
                         await send_to_bq(
                             publisher, pub_path, install_id,
-                            speaker_entries[0].entity_id if speaker_entries else "assist_satellite.voice_pe",
-                            f"Pipeline Ready ({desired_stt}/{desired_tts})",
-                            "VOICE_PIPELINE", "SUCCESS", "{}", hass
+                            "viva_renamer.voice_pipeline",
+                            "VivaJot Voice Pipeline",
+                            "VOICE_PIPELINE", "SUCCESS", f"stt={desired_stt} tts={desired_tts}", hass
                         )
             except Exception as pipe_ex:
                 pipe_status = f"pipe_err:{pipe_ex}"
@@ -269,10 +273,11 @@ def setup(hass: HomeAssistant, config: dict):
                         st = hass.states.get(entry.entity_id)
                         sp_states[entry.entity_id] = st.state if st else "unloaded"
                 diag_json = json.dumps({"gc": gc_status, "pipe": pipe_status, "entities": sp_states})
+                # Own entity id for the same reason as the pipeline row above
                 await send_to_bq(
                     publisher, pub_path, install_id,
-                    speaker_entries[0].entity_id if speaker_entries else "assist_satellite.voice_pe",
-                    "Voice Diagnostics",
+                    "viva_renamer.voice_diag",
+                    "VivaJot Voice Diagnostics",
                     "VOICE_DIAG", "SUCCESS", diag_json, hass
                 )
         except Exception as ex:
