@@ -1,4 +1,5 @@
-import logging, os, json, threading, time, fnmatch, subprocess, urllib.request
+import logging, os, json, threading, time, fnmatch, subprocess, urllib.request, shutil
+from datetime import timedelta
 from homeassistant.core import HomeAssistant, SupportsResponse
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 from google.cloud import pubsub_v1
@@ -6,6 +7,8 @@ from google.api_core.exceptions import NotFound
 
 _LOGGER = logging.getLogger(__name__)
 DOMAIN = "viva_renamer"
+_STARTED_AT = time.time()          # this component loads at HA start: its age is HA's uptime
+LOG_PATH = "/config/home-assistant.log"
 
 def setup(hass: HomeAssistant, config: dict):
     _LOGGER.info("VivaJot: Starting Zigbee Service...")
@@ -247,11 +250,15 @@ def setup(hass: HomeAssistant, config: dict):
                             f"VivaJot: Auto-configured Assist Pipeline '{pipeline.name}' "
                             f"with STT={desired_stt}, TTS={desired_tts}"
                         )
+                        # Own entity id and a dot-free name (Nov 1 2026): sent under the speaker's id with a
+                        # dotted name, this overwrote the speaker's registry row as "Pipeline Ready (stt" in
+                        # location "vivajot_voice_stt/tts", so the speaker looked assigned and the app showed
+                        # a phantom device. The engines go in action_request. viva_renamer.* rows are hidden.
                         await send_to_bq(
                             publisher, pub_path, install_id,
-                            speaker_entries[0].entity_id if speaker_entries else "assist_satellite.voice_pe",
-                            f"Pipeline Ready ({desired_stt}/{desired_tts})",
-                            "VOICE_PIPELINE", "SUCCESS", "{}", hass
+                            "viva_renamer.voice_pipeline",
+                            "VivaJot Voice Pipeline",
+                            "VOICE_PIPELINE", "SUCCESS", f"stt={desired_stt} tts={desired_tts}", hass
                         )
             except Exception as pipe_ex:
                 pipe_status = f"pipe_err:{pipe_ex}"
@@ -266,10 +273,11 @@ def setup(hass: HomeAssistant, config: dict):
                         st = hass.states.get(entry.entity_id)
                         sp_states[entry.entity_id] = st.state if st else "unloaded"
                 diag_json = json.dumps({"gc": gc_status, "pipe": pipe_status, "entities": sp_states})
+                # Own entity id for the same reason as the pipeline row above
                 await send_to_bq(
                     publisher, pub_path, install_id,
-                    speaker_entries[0].entity_id if speaker_entries else "assist_satellite.voice_pe",
-                    "Voice Diagnostics",
+                    "viva_renamer.voice_diag",
+                    "VivaJot Voice Diagnostics",
                     "VOICE_DIAG", "SUCCESS", diag_json, hass
                 )
         except Exception as ex:
@@ -325,6 +333,32 @@ async def process_command(hass, data, pub, path, req, inst):
             await hass.services.async_call("homeassistant", "restart", blocking=False)
         except Exception as e:
             _LOGGER.error(f"VivaJot: Emergency update FAILED on {inst}: {e}")
+        return
+
+    # --- HEALTH REPORT (Nov 1 2026) ---
+    # The app's Diagnostics asks for this when a user complains:
+    #   Topic: vivajot-setup   Body: {"command": "send_health", "installation_id": "<HUB>"}
+    # One screen of what the hub knows about itself: boot and uptime, HA version, Zigbee
+    # state, every device as HA sees it (unavailable + since), disk, memory, and the last
+    # warnings/errors from home-assistant.log. Published on the confirmation topic like
+    # every other hub message, so it lands in Device_Setup_History (action_type HUB_HEALTH,
+    # text in action_request) with no new table or topic. Capped at 7 KB: a brief, not a dump.
+    if command == "send_health":
+        _LOGGER.warning(f"VivaJot: Health report requested for {inst}")
+        try:
+            card = await build_health_card(hass)
+            # Same field set as every other confirmation so the BigQuery row is complete.
+            # friendly_name carries "VivaJot" and location is "Unknown": the two filters the
+            # Devices tab already uses to hide system rows, so this never shows as a device.
+            confirm = {"inst_id": inst, "entity_id": "viva_renamer.hub_health", "action_type": "HUB_HEALTH",
+                       "friendly_name": "VivaJot Hub Health", "location_name": "Unknown",
+                       "status": "SUCCESS", "action_request": card}
+            await hass.async_add_executor_job(
+                lambda: pub.publish(path, json.dumps(confirm).encode("utf-8")).result(timeout=15)
+            )
+            _LOGGER.warning(f"VivaJot: Health report published for {inst} ({len(card)} chars)")
+        except Exception as e:
+            _LOGGER.error(f"VivaJot: Health report FAILED on {inst}: {e}")
         return
 
     if command == "permit_join":
@@ -437,6 +471,95 @@ async def process_command(hass, data, pub, path, req, inst):
             await send_to_bq(pub, path, inst, eid, final_name, action, "SUCCESS", req, hass)
         except Exception as e: _LOGGER.error(f"Op Fail: {e}")
     else: _LOGGER.warning(f"VivaJot: {eid} not found.")
+
+def _read_system_facts():
+    """Blocking reads for the health report (files, disk): run off the event loop."""
+    facts = {"host_uptime_min": None, "disk_free_gb": None, "disk_pct_used": None, "mem_avail_mb": None,
+             "log_first_line": "", "log_tail": [], "log_warn_count": 0, "log_err_count": 0}
+    try:
+        with open("/proc/uptime") as fh:
+            facts["host_uptime_min"] = int(float(fh.read().split()[0]) / 60)
+    except Exception:
+        pass
+    try:
+        du = shutil.disk_usage("/config")
+        facts["disk_free_gb"] = round(du.free / 1e9, 2)
+        facts["disk_pct_used"] = int(100 * du.used / du.total) if du.total else None
+    except Exception:
+        pass
+    try:
+        with open("/proc/meminfo") as fh:
+            for line in fh:
+                if line.startswith("MemAvailable:"):
+                    facts["mem_avail_mb"] = int(line.split()[1]) // 1024
+                    break
+    except Exception:
+        pass
+    try:
+        # HA starts a fresh log on every boot, so its first line is the boot time.
+        # Read only the last 400 KB: the log can be large and this must stay quick.
+        with open(LOG_PATH, "rb") as fh:
+            facts["log_first_line"] = fh.readline().decode("utf-8", "replace").strip()[:120]
+            fh.seek(0, 2)
+            size = fh.tell()
+            fh.seek(max(0, size - 400_000))
+            lines = fh.read().decode("utf-8", "replace").splitlines()
+        keep = []
+        for ln in lines:
+            if " WARNING " in ln:
+                facts["log_warn_count"] += 1
+            elif " ERROR " in ln or " CRITICAL " in ln:
+                facts["log_err_count"] += 1
+            else:
+                continue
+            keep.append(ln[:220])
+        facts["log_tail"] = keep[-25:]
+    except Exception as e:
+        facts["log_tail"] = [f"(log unreadable: {e})"]
+    return facts
+
+async def build_health_card(hass):
+    """The hub's one-screen self-report, plain text. Must run on the event loop (reads hass.states)."""
+    from homeassistant.const import __version__ as ha_version
+    import homeassistant.util.dt as dt_util
+    facts = await hass.async_add_executor_job(_read_system_facts)
+    now = dt_util.now()
+    out = []
+    out.append(f"HUB REPORT  {now.strftime('%Y-%m-%d %H:%M')} {now.tzname()}  Home Assistant {ha_version}")
+    ha_up = int((time.time() - _STARTED_AT) / 60)
+    host_up = facts["host_uptime_min"]
+    out.append(f"HA up {ha_up} min (started {(now - timedelta(minutes=ha_up)).strftime('%m-%d %H:%M')}); host up {host_up if host_up is not None else '?'} min")
+    if facts["log_first_line"]:
+        out.append(f"Log begins: {facts['log_first_line']}")
+    out.append(f"Disk free {facts['disk_free_gb']} GB ({facts['disk_pct_used']}% used); memory available {facts['mem_avail_mb']} MB")
+
+    zha_entries = hass.config_entries.async_entries("zha")
+    zha_state = zha_entries[0].state.name if zha_entries else "NOT CONFIGURED"
+    reboots = hass.states.get("counter.vivajot_zha_reboots")
+    online = hass.states.get("sensor.vivajot_devices_online")
+    total = hass.states.get("sensor.vivajot_devices_total")
+    out.append(f"Zigbee (ZHA): {zha_state}; watchdog reboots this incident: {reboots.state if reboots else '?'}; devices online {online.state if online else '?'} of {total.state if total else '?'}")
+
+    out.append("")
+    out.append("DEVICES AS THE HUB SEES THEM (state, last change, entity) - unavailable first, then oldest")
+    rows = []
+    for st in hass.states.async_all():
+        d = st.domain
+        if d in ("light", "binary_sensor", "switch") or (d == "sensor" and st.entity_id.endswith("_battery")):
+            if "vivajot" in st.entity_id:
+                continue
+            rows.append((st.state != "unavailable", st.last_changed, st))
+    rows.sort(key=lambda r: (r[0], r[1]))
+    for _, _, st in rows[:60]:
+        lc = dt_util.as_local(st.last_changed).strftime("%m-%d %H:%M")
+        out.append(f"{st.state:<12} {lc}  {st.entity_id}  [{st.attributes.get('friendly_name', '')}]")
+    if len(rows) > 60:
+        out.append(f"... {len(rows) - 60} more")
+
+    out.append("")
+    out.append(f"LOG: {facts['log_warn_count']} warnings, {facts['log_err_count']} errors in the last 400 KB; last 25:")
+    out.extend(facts["log_tail"] or ["(none)"])
+    return "\n".join(out)[:7000]
 
 async def send_to_bq(pub, path, inst, eid, full_name, action, status, req, hass):
     parts = full_name.split('.')

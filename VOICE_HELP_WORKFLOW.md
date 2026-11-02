@@ -181,6 +181,21 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
   reaches the pipeline: stop, the okay class (all-clear), or the question. Nothing falls
   through to Home Assistant's built-in intents.
 
+### Firmware 26.10.30.2 (2026-10-30)
+- **The wake word is ignored while the mic is listening for an answer.** Before this, a TV could
+  re-trigger the wake mid-listen and restart the question, so one false wake became a loop.
+  The wake word stays live while the speaker is talking, so "VivaJot stop" still cuts it off.
+  During a listen, "VivaJot stop" is taken as an answer (`stop_answers`). A resident who says
+  "VivaJot" during a listen gets the retry question, or on the second listen can say it again
+  once the listen ends. A ringing timer can still be stopped.
+- Live test on 26.10.30.1 (15 min of a talk podcast near the speaker, 2026-10-30): 13 false wakes
+  (~52/h), 22 spoken lines, ~4 min of audio sent to speech-to-text, 0 alerts. 5 of the 13 wakes
+  were inside a listen. No word was shared across the wakes, so a phrase list will not help; the
+  model is the cause and needs a retrain. A detection logs the average at its first crossing of
+  the cutoff, so 0.90-0.91 in the log does not mean a near miss: 5 of 13 reached 0.99+.
+- Still to test: with a TV talking, a listen stays open ~14 s and any "yes" is transcribed with
+  the TV's words, which will not match the exact answer list.
+
 ### Firmware 26.10.30.1 (2026-10-30)
 - `vivajot` cutoff raised from 0.80 to 0.90 after false wakes continued during conversation.
   Window stays 5, the stock value (stock Hey Jarvis is 0.97 / 5, but on a different scale). Effect on

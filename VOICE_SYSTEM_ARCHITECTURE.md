@@ -45,11 +45,13 @@ in [wakewords/README.md](wakewords/README.md) and
 ## 1. The speaker (ESPHome firmware)
 
 Hardware: Home Assistant Voice Preview Edition (ESP32-S3). Firmware is a VivaJot fork of
-the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.10.30.1**.
+the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.10.30.2**.
 
 **Privacy model.** Wake-word detection is 100 % on-device (microWakeWord). No audio leaves
 the room until a wake word fires — required for health-facility deployments. Only after a
 wake does the speaker send audio to the hub, and only while the hub is asking its question.
+A false wake counts: background talk that fires the wake word is sent to speech-to-text for
+up to two listens of about 15 s each. The wake word is ignored while a listen is open.
 
 **Wake-word models** (shipped in firmware, trained per the wakewords README):
 
