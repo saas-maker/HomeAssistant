@@ -1,14 +1,14 @@
 {
   "name": "VivaJot Voice PE",
-  "version": "26.11.02.1",
+  "version": "26.11.02.2",
   "home_assistant_domain": "esphome",
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "ota": {
         "path": "voice-pe-vivajot.ota.bin",
-        "md5": "ce98c2fe6bc70c069cb0e1dbbf00c033",
-        "summary": "Retrained VivaJot wake word (test 8, cutoff 0.95): far fewer false wakes from TV and conversation",
+        "md5": "09c50d38f79123a3843fd9b394361931",
+        "summary": "Retrained VivaJot wake word (test 8) at cutoff 0.85 so it hears more easily",
         "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
       }
     }

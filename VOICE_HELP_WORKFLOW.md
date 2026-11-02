@@ -181,6 +181,10 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
   reaches the pipeline: stop, the okay class (all-clear), or the question. Nothing falls
   through to Home Assistant's built-in intents.
 
+### Firmware 26.11.02.2 (2026-11-02)
+- Test 8 cutoff lowered from 0.95 to 0.85: on Cary's speaker 26.11.02.1 did not wake easily on his real
+  voice. The bench never measured test 8 below 0.90, so hearing and false wakes at 0.85 are unknown.
+
 ### Firmware 26.11.02.1 (2026-11-02)
 - **New `vivajot` model: retrain test 8, cutoff 0.95** (window 5). Bench (`wakewords/retrain/RETRAIN_PLAN.md`):
   0.4 false wakes/h on held-out talk (old model: 22/h at 0.90); hears 76% normal, 75% quiet, 74% soft,
