@@ -9,6 +9,8 @@ import logging
 import os
 import sys
 import wave
+from datetime import datetime, timedelta
+
 import aiohttp
 
 from google.oauth2 import service_account
@@ -18,6 +20,7 @@ from homeassistant.components import stt
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 _LOGGER = logging.getLogger(__name__)
@@ -90,6 +93,26 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
         self.entity_id = "stt.vivajot_voice_stt"
         self._creds = None
         self._auth_request = None
+
+    async def async_added_to_hass(self) -> None:
+        """Warm the Google token at startup and keep it fresh.
+
+        The first call after a hub restart had to fetch the token and open a cold
+        connection to Google before sending the audio, and could run past the request
+        timeout. The speaker then got stt-stream-failed and the resident's answer was
+        silently dropped (Cary, 2026-11-02: the first "no" after a restart).
+        """
+        await super().async_added_to_hass()
+        await self._warm_token()
+        self.async_on_remove(
+            async_track_time_interval(self.hass, self._warm_token, timedelta(minutes=20))
+        )
+
+    async def _warm_token(self, _now=None) -> None:
+        try:
+            await self.hass.async_add_executor_job(self._get_token_sync)
+        except Exception as t_err:
+            _LOGGER.error(f"VivaJot STT: Token warm-up failed: {t_err}")
 
     def _log_bq_sync(self, status: str, detail: str) -> None:
         """Send STT telemetry to BigQuery Device_Setup_History."""
@@ -166,7 +189,9 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
             )
             self._auth_request = google.auth.transport.requests.Request()
 
-        if not self._creds.valid:
+        expiry = self._creds.expiry
+        expiring = expiry is not None and (expiry - datetime.utcnow()) < timedelta(minutes=25)
+        if not self._creds.valid or expiring:
             self._creds.refresh(self._auth_request)
 
         return self._creds.token
@@ -276,6 +301,17 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
             "Content-Type": "application/json",
         }
 
+        # One retry on a timeout or request error: the first call after a hub restart
+        # runs on a cold connection and can miss the timeout once, and a dropped answer
+        # is worse than a few extra seconds (Cary, 2026-11-02).
+        for attempt in (1, 2):
+            result = await self._recognize_once(session, url, payload, headers, attempt)
+            if result is not None:
+                return result
+        return stt.SpeechResult("", stt.SpeechResultState.ERROR)
+
+    async def _recognize_once(self, session, url, payload, headers, attempt):
+        """One request to Google. Returns a SpeechResult, or None when a retry may help."""
         try:
             async with session.post(
                 url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=12)
@@ -286,7 +322,8 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
                     await self.hass.async_add_executor_job(
                         self._log_bq_sync, "ERROR", f"HTTP {resp.status}: {err_text[:200]}"
                     )
-                    return stt.SpeechResult("", stt.SpeechResultState.ERROR)
+                    # 5xx may pass on a retry; 4xx will not.
+                    return None if resp.status >= 500 and attempt == 1 else stt.SpeechResult("", stt.SpeechResultState.ERROR)
 
                 res_json = await resp.json()
                 transcripts = []
@@ -297,9 +334,9 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
                 text = " ".join(transcripts).strip()
                 # Status only, never the words (Nov 1 2026): a resident's transcript was reaching
                 # BigQuery's device table (277 rows) and the HA log, which the hub report now ships.
-                _LOGGER.warning(f"VivaJot STT: Transcribed {len(text)} chars from {len(audio_bytes)} bytes")
+                _LOGGER.warning(f"VivaJot STT: Transcribed {len(text)} chars from {len(payload['audio']['content']) * 3 // 4} bytes (try {attempt})")
                 await self.hass.async_add_executor_job(
-                    self._log_bq_sync, "SUCCESS", f"Heard {len(text)} chars ({len(audio_bytes)}b)"
+                    self._log_bq_sync, "SUCCESS", f"Heard {len(text)} chars (try {attempt})"
                 )
                 # Empty transcript (silence / unclear speech) is NOT a failure:
                 # returning SUCCESS with no text lets the pipeline raise the
@@ -308,8 +345,8 @@ class VivaJotSpeechToTextEntity(stt.SpeechToTextEntity):
                 # stt-stream-failed on every wake-word-only test (2026-10-22).
                 return stt.SpeechResult(text, stt.SpeechResultState.SUCCESS)
         except Exception as req_ex:
-            _LOGGER.error(f"VivaJot STT: Recognize request failed: {req_ex}")
+            _LOGGER.error(f"VivaJot STT: Recognize request failed (try {attempt}): {req_ex}")
             await self.hass.async_add_executor_job(
-                self._log_bq_sync, "ERROR", f"Ex: {req_ex}"
+                self._log_bq_sync, "ERROR", f"Ex (try {attempt}): {req_ex}"
             )
-            return stt.SpeechResult("", stt.SpeechResultState.ERROR)
+            return None if attempt == 1 else stt.SpeechResult("", stt.SpeechResultState.ERROR)

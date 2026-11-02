@@ -181,6 +181,15 @@ follow-up are gone: a resident who wants to add something says "Hey Jarvis" agai
   reaches the pipeline: stop, the okay class (all-clear), or the question. Nothing falls
   through to Home Assistant's built-in intents.
 
+### Hub 2026-11-02: speech-to-text warm-up and one retry
+- The first "no" after a restart was dropped silently, twice (after the 10-30 flash and the 11-02 one). The
+  10-30 log has the mechanism: `stt-stream-failed` 13 s after the mic closed, which is `stt.py`'s 12 s request
+  timeout. The first call after a hub restart also fetched the Google token and opened a cold connection, so it
+  could miss the timeout once; a failed request gives the question no answer, and no answer is treated as silence.
+- Fix in `stt.py`: the token is fetched when the entity loads and refreshed every 20 min (and whenever under
+  25 min from expiry); a timed-out or failed request is retried once. Worst case is now about 24 s before the
+  speaker gives up, instead of a dropped answer. Not yet confirmed on the hub: the next restart is the test.
+
 ### Firmware 26.11.02.3 (2026-11-02): wake word is stock "Hey Jarvis"
 - The VivaJot models are out of the firmware. Neither the original nor the retrained one both heard
   Cary reliably and ignored the TV; stock Hey Jarvis (0.97, window 5; ~0.6 false wakes/h on the dinner
