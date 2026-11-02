@@ -261,6 +261,31 @@ Next increment, ONE change: `target_minimization` 8.0, so steps 3,000 (4.5/h), 5
 8,000 (1.5) all compete on hearing. Risk, stated up front: a snapshot at 5 or 6/h at cutoff 0.5 may not get
 under 1/h on the bench at any cutoff; then the bench says so and test 7 stays the best.
 
+## Test 8, 2026-11-02: snapshot target 8.0/h. Closest yet: 4 to 5 points short on normal and quiet. FAIL.
+
+`vivajot_test8.ipynb`: test 7 plus ONE change, `target_minimization` 8.0 (verified from the trainer's yaml).
+Same features as tests 6 and 7. Run on the same CPU runtime. Model saved as `candidates/test8_vivajot.tflite`
+(not shipped).
+
+Trainer's own checks, false alarms per hour on held-out talk at cutoff 0.5, steps 1,000 to 10,000:
+9.4, 49, 284, 31, 9.0, 6.8, 11.3, 10.1, 6.0, 1.9. Four snapshots were under the target this time and the
+picker chose by hearing among them, ending on step 10,000 (1.9/h, 98.6% hearing on its own test clips).
+
+| | False wakes/h at 0.90 | normal | quiet | soft | very soft |
+|---|---|---|---|---|---|
+| deployed | 22.2 | 81% | 80% | 73% | 41% |
+| test 7 | 0.4 | 65% | 69% | 69% | 31% |
+| test 8 | 1.0 | 77% | 75% | 75% | 44% |
+
+Inside the limit the bench picks cutoff 0.95: 0.4/h, hears 76% normal, 75% quiet, 74% soft, 36% very soft.
+Verdict FAIL by the rule (normal 5 points and quiet 5 points below deployed; 1 point is 1 bench clip).
+Soft and very soft are better than deployed at every cutoff from 0.75 up.
+
+What this says: letting the picker choose on hearing recovered most of the normal-voice loss (65% to 77%),
+and the kept snapshot was the last one, with false alarms still falling (6.0 then 1.9/h). Theory, not
+verified: the slow half had not finished settling. Next increment, ONE change: the slow half runs 10,000
+steps instead of 5,000 (15,000 total, about 2.5 hours on a free CPU runtime).
+
 ## What went wrong before
 
 - **Best model never kept.** With no talk audio to check against, the upstream training code keeps
