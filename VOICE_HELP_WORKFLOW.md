@@ -102,7 +102,7 @@ Agreed by Cary after the wake-word measurements below. Built in `automations.yam
 `configuration.yaml` and firmware 26.10.28.1. Supersedes the 2026-10-27 spec.
 
 ### Rules
-1. **One wake word: "VivaJot".** The speaker listens for nothing else. "Help Help" is retired
+1. **One wake word: "Hey Jarvis".** The speaker listens for nothing else. "Help Help" is retired
    (it missed 16% of clean synthetic clips) and no new emergency word is trained until a
    model measures better than today's on the bench (see measurements).
 2. **The question comes straight after the chime.** The speaker does not listen for a
@@ -115,7 +115,7 @@ Agreed by Cary after the wake-word measurements below. Built in `automations.yam
    ways to say each are accepted (lists below). A bare "okay" is ambiguous and gets the
    question once more.
 6. **Every spoken line is literally true** and only said after the send succeeded.
-7. **"Stop" means be quiet**, anywhere, any time, with or without "VivaJot" in front. It
+7. **"Stop" means be quiet**, anywhere, any time, with or without "Hey Jarvis" in front. It
    never cancels an alert.
 
 ### The flow
@@ -158,7 +158,7 @@ A send that fails is always spoken: "I couldn't send the alert / that. Please us
   testing, cancel, that's okay, it's fine, and the okay class: [no] I'm/I am [doing|feeling]
   okay/ok/fine/alright/good/safe/better [now], all good, false alarm, never mind, forget it,
   I'm good, everything is/'s okay/fine.
-- **Stop**: stop, VivaJot stop, shut up, be quiet, quiet, stop talking, that's enough,
+- **Stop**: stop, Hey Jarvis stop, shut up, be quiet, quiet, stop talking, that's enough,
   enough, leave me alone, no more.
 - **Not an answer** (asked again): okay, fine, hello, what, "I can't stop bleeding" (not a
   stop: stop is only a whole answer), "yes my hip hurts", anything else. The resident adds
@@ -169,7 +169,7 @@ A send that fails is always spoken: "I couldn't send the alert / that. Please us
 cancelled by the all-clear. It only selects which question is asked and keeps the "told your
 caregiver" line truthful. After 2 h the speaker asks the plain "Do you need help?" again, and a
 new yes starts a new incident (24 h made it say "already notified" the next morning). The 10-minute mute timer and the automatic "Are you hurt?"
-follow-up are gone: a resident who wants to add something says "VivaJot" again.
+follow-up are gone: a resident who wants to add something says "Hey Jarvis" again.
 
 ### Hub automations (3)
 - `vivajot_voice_wake_event`: logs the wake to the Logbook ("VivaJot wake: vivajot on
@@ -180,6 +180,14 @@ follow-up are gone: a resident who wants to add something says "VivaJot" again.
 - `vivajot_voice_conversation`: safety net for older firmware or any speech that still
   reaches the pipeline: stop, the okay class (all-clear), or the question. Nothing falls
   through to Home Assistant's built-in intents.
+
+### Firmware 26.11.02.3 (2026-11-02): wake word is stock "Hey Jarvis"
+- The VivaJot models are out of the firmware. Neither the original nor the retrained one both heard
+  Cary reliably and ignored the TV; stock Hey Jarvis (0.97, window 5; ~0.6 false wakes/h on the dinner
+  party corpus per its author) is the only wake word for now. VivaJot can be revisited later.
+- Everything else is unchanged: the wake event, the hub's question, the button, the wake-word ignore
+  while listening, the 8 s listen cap, our OTA manifest. The hub also accepts "Hey Jarvis stop".
+- The "Wake word sensitivity" setting on the device page still works (Hey Jarvis only).
 
 ### Firmware 26.11.02.2 (2026-11-02)
 - Test 8 cutoff lowered from 0.95 to 0.85: on Cary's speaker 26.11.02.1 did not wake easily on his real
@@ -266,7 +274,7 @@ and folded them into the hidden routine checks, so a request vanished once the r
 they were okay. The resident's later words ("my foot hurts") are appended to the same row.
 
 ### Known limits
-- "help" shouted without "VivaJot" does nothing. Teaching, a card by the speaker, and the
+- "help" shouted without "Hey Jarvis" does nothing. Teaching, a card by the speaker, and the
   phone/pendant are the mitigations.
 - The question starts right after the chime, so "VivaJot I fell" said in one breath may lose
   its first word; "I fell" is in the yes class.
@@ -278,23 +286,23 @@ they were okay. The resident's later words ("my foot hurts") are appended to the
   bug above). Firing the wake event after the chime, in firmware, would remove the wait.
 
 ### Timeline tests (real speaker)
-1. **False wake, someone present:** "VivaJot" → "Do you need help? Yes or no." → "no" →
+1. **False wake, someone present:** "Hey Jarvis" → "Do you need help? Yes or no." → "no" →
    silence. Nothing on the phone or dashboard.
-2. **False wake, empty room:** "VivaJot" → question → silence → nothing more, nothing sent
+2. **False wake, empty room:** "Hey Jarvis" → question → silence → nothing more, nothing sent
    (silence is not asked twice).
-3. **Real request:** "VivaJot" → question → "yes" → "I've notified your caregiver. Stay where
+3. **Real request:** "Hey Jarvis" → question → "yes" → "I've notified your caregiver. Stay where
    you are." → push + hero within ~15 s. Logbook shows "VivaJot wake: vivajot".
-4. **Still needs help:** "VivaJot" → "Your caregiver has already been notified. Do you still
+4. **Still needs help:** "Hey Jarvis" → "Your caregiver has already been notified. Do you still
    need help?" → "yes" → "Tell me what's wrong." → "my hip" → "Okay, I've sent that to your
    caregiver." → same card updated with "my hip", not a second card.
-5. **All-clear:** "VivaJot" → "…Do you still need help?" → "no" (or "I'm fine") → "Okay, I've
+5. **All-clear:** "Hey Jarvis" → "…Do you still need help?" → "no" (or "I'm fine") → "Okay, I've
    told your caregiver you're okay." → all-clear push, hero releases.
-6. **Stale alert:** caregiver taps Mark Safe on the app, then "VivaJot" → the speaker still
+6. **Stale alert:** caregiver taps Mark Safe on the app, then "Hey Jarvis" → the speaker still
    asks "…Do you still need help?" (within the 2 h incident window) → "yes" → words → a fresh alert.
 7. **Stop mid-question:** during any question, "VivaJot, stop" or "stop" → silence, no retry.
 8. **Soft voice:** whisper "yeah" / "nope" / "uh huh" from across the room; each must land.
-9. **Overnight:** alert at 2:30 AM, 3 AM restart, "VivaJot" at 3:15 AM → the "still need help"
-   question (timer restored). "VivaJot" at 7 AM → the plain "Do you need help?" (window over).
+9. **Overnight:** alert at 2:30 AM, 3 AM restart, "Hey Jarvis" at 3:15 AM → the "still need help"
+   question (timer restored). "Hey Jarvis" at 7 AM → the plain "Do you need help?" (window over).
 
 ### Live test results (2026-10-28 evening, Cary's speaker, firmware 26.10.28.1)
 | Test | Result |

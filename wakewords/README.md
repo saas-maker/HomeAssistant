@@ -6,7 +6,7 @@ the device until the wake word fires (important for health-facility privacy).
 
 | File | What it is |
 |------|------------|
-| `vivajot.tflite` / `vivajot.json` | "VivaJot" — the ONLY wake word in firmware 26.10.28.1+. From 26.11.02.1 this is the retrained test 8 model (cutoff 0.85 from 26.11.02.2; 0.95 heard too poorly on Cary's speaker); the original 2026-10-22 model (cutoff 0.90) is kept in `retired/vivajot_2026-10-22.*` for rollback |
+| `vivajot.tflite` / `vivajot.json` | "VivaJot" — the only wake word in firmware 26.10.28.1 to 26.11.02.2. NOT in firmware since 26.11.02.3, which uses stock "Hey Jarvis" (Cary, 2026-11-02: not reliable enough, revisit later). From 26.11.02.1 this is the retrained test 8 model (cutoff 0.85 from 26.11.02.2; 0.95 heard too poorly on Cary's speaker); the original 2026-10-22 model (cutoff 0.90) is kept in `retired/vivajot_2026-10-22.*` for rollback |
 | `retired/` | Models not in the firmware: `help_help` (retired 2026-10-28, missed 16% of clean synthetic clips), `somebody_help` (2026-10-28, NOT shipped, false-wakes 7/h on conversation), `vivajot_help` (never used) |
 | `retrain/` | The VivaJot retrain: `RETRAIN_PLAN.md` (every test and its numbers), `bench.py` (the measuring stick), `vivajot_retrain.ipynb` (the full plan, not yet run), `tests/` (one Colab notebook per test, numbered in the order they ran), `candidates/` (the model each test produced; `test8_vivajot.tflite` is the current best) |
 | `firmware/` | Built firmware images + OTA/flash manifests (what the speakers install) |

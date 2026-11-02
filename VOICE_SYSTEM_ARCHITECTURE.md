@@ -1,6 +1,6 @@
 # VivaJot Voice Safety System — Architecture
 
-How a resident's "VivaJot" and a spoken yes become a caregiver alert, end to end: speaker firmware,
+How a resident's "Hey Jarvis" and a spoken yes become a caregiver alert, end to end: speaker firmware,
 Home Assistant hub, Pub/Sub transport, Cloud Run, BigQuery, and the VivaJot dashboard.
 Written for engineering review (2026-10-23; updated 2026-10-28 for voice v4). Wake-word **training** is documented separately
 in [wakewords/README.md](wakewords/README.md) and
@@ -45,7 +45,7 @@ in [wakewords/README.md](wakewords/README.md) and
 ## 1. The speaker (ESPHome firmware)
 
 Hardware: Home Assistant Voice Preview Edition (ESP32-S3). Firmware is a VivaJot fork of
-the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.11.02.2**.
+the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.11.02.3**.
 
 **Privacy model.** Wake-word detection is 100 % on-device (microWakeWord). No audio leaves
 the room until a wake word fires — required for health-facility deployments. Only after a
@@ -57,7 +57,7 @@ up to two listens of about 15 s each. The wake word is ignored while a listen is
 
 | Model | Purpose | Probability cutoff |
 |---|---|---|
-| `vivajot` ("VivaJot") | The only wake word (listed first, so enabled by default) | 0.85 (window 5) |
+| `hey_jarvis` (stock "Hey Jarvis") | The only wake word (listed first, so enabled by default). The VivaJot models were retired on 2026-11-02 as not reliable enough; files stay in `wakewords/` | 0.97 (window 5), the device's "Wake word sensitivity" setting |
 | `stop` (stock) | Interrupts TTS playback locally, enabled only during announcements | stock |
 
 Retired (files kept in `wakewords/retired/`, not in firmware): `help_help` (quiet but missed 16% of
@@ -110,7 +110,7 @@ nothing for soft one-word answers like "no" (2026-10-28). Each answer logs
 | `timer.vivajot_help_active` | 2 h, `restore: true` | "A help alert is active." Started by every successful help send, cancelled by the all-clear. Selects which question is asked and keeps the "told your caregiver" line truthful. Survives the 3 AM restart. |
 
 ### Voice UX doctrine (as built, v4, 2026-10-28)
-1. One wake word, "VivaJot". The question comes straight after the chime; the speaker never
+1. One wake word, "Hey Jarvis" (stock). The question comes straight after the chime; the speaker never
    listens for a free-form command first.
 2. Nothing is sent without a yes. Not from a wake alone, not from silence, not when
    speech-to-text is down.

@@ -1,14 +1,14 @@
 {
   "name": "VivaJot Voice PE",
-  "version": "26.11.02.2",
+  "version": "26.11.02.3",
   "home_assistant_domain": "esphome",
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "ota": {
         "path": "voice-pe-vivajot.ota.bin",
-        "md5": "09c50d38f79123a3843fd9b394361931",
-        "summary": "Retrained VivaJot wake word (test 8) at cutoff 0.85 so it hears more easily",
+        "md5": "177ab96109ddaaf1ba15527e0926d446",
+        "summary": "Wake word is now stock Hey Jarvis; the VivaJot wake word models are out. Everything else unchanged",
         "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
       }
     }

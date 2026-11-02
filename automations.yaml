@@ -398,6 +398,8 @@
     stop_answers:
       - "stop"
       - "[vivajot] stop"
+      - "[hey jarvis] stop"
+      - "[jarvis] stop"
       - "shut up"
       - "be quiet"
       - "quiet"
