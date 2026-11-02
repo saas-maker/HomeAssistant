@@ -32,7 +32,7 @@ You need: a Google account and the notebook file in this folder
 
 8. Run Cell 12 - it downloads the .tflite model file.
 
-9. Put the .tflite in this folder, copy vivajot_help.json to
+9. Put the .tflite in this folder, copy vivajot.json to
    <newname>.json, and edit the "wake_word" and "model" lines in it.
 
 10. Add the new model to the speaker firmware: in

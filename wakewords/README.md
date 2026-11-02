@@ -7,10 +7,8 @@ the device until the wake word fires (important for health-facility privacy).
 | File | What it is |
 |------|------------|
 | `vivajot.tflite` / `vivajot.json` | "VivaJot" — the ONLY wake word in firmware 26.10.28.1+ (cutoff 0.90 from 26.10.30.1) |
-| `help_help.*` | "Help Help" — retired 2026-10-28 (missed 16% of clean synthetic clips) |
-| `somebody_help.*` | "Somebody Help" — trained 2026-10-28, measured, NOT shipped (false-wakes 7/h on conversation) |
-| `vivajot_help.*` | "VivaJot Help" — never used |
-| `retrain/` | The VivaJot retrain: plan, Colab notebook, and the bench that compares models |
+| `retired/` | Models not in the firmware: `help_help` (retired 2026-10-28, missed 16% of clean synthetic clips), `somebody_help` (2026-10-28, NOT shipped, false-wakes 7/h on conversation), `vivajot_help` (never used) |
+| `retrain/` | The VivaJot retrain: `RETRAIN_PLAN.md` (every test and its numbers), `bench.py` (the measuring stick), `vivajot_retrain.ipynb` (the full plan, not yet run), `tests/` (one Colab notebook per test, numbered in the order they ran), `candidates/` (the model each test produced; `test8_vivajot.tflite` is the current best) |
 | `firmware/` | Built firmware images + OTA/flash manifests (what the speakers install) |
 | `firmware-config/` | The ESPHome YAML the firmware was built from |
 
@@ -80,7 +78,7 @@ kept for reference; that model is not in the firmware.*
    ```yaml
    micro_wake_word:
      models:
-       - model: https://raw.githubusercontent.com/saas-maker/HomeAssistant/master/wakewords/vivajot_help.json
+       - model: https://raw.githubusercontent.com/saas-maker/HomeAssistant/master/wakewords/retired/vivajot_help.json
    ```
 
    Or copy both files to the ESPHome config dir and reference the local

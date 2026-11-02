@@ -48,7 +48,7 @@ These are synthetic voices. Real elderly voices have never been measured.
 
 ## Simple run, 2026-10-30: FAIL
 
-`vivajot_simple.ipynb`: the old recipe (18 en_US voices x 250, 1500 ms, weight 20, 10k steps) with only
+`tests/test0_simple.ipynb`: the old recipe (18 en_US voices x 250, 1500 ms, weight 20, 10k steps) with only
 two fixes, household noise present and the end-of-training weights exported. Free T4, about 1 hour.
 Bench on 6.72 h of People's Speech talk, 32 unseen British clips in 3 rooms:
 
@@ -84,7 +84,7 @@ saved snapshot by false alarms on held-out talk. Deployed hears trained voices 9
 
 ## Test 1, 2026-10-31: 900 voices instead of 18. False wakes nearly gone, hearing halved.
 
-`vivajot_voices.ipynb`: the deployed recipe exactly (900 clips, 1500 ms, weight 20, 10k steps, music
+`tests/test1_voices.ipynb`: the deployed recipe exactly (900 clips, 1500 ms, weight 20, 10k steps, music
 behind the word, best_weights) with ONE change: the 900 clips come from about 900 LibriTTS-R speakers
 at several paces instead of 18 Piper voices. Free T4, 55 minutes. Same bench as before.
 
@@ -106,7 +106,7 @@ more clips (about 5,000), to see whether hearing comes back without the false wa
 
 ## Test 2, 2026-10-31: 900 voices, 5,000 clips. Hears very well, false wakes worse than deployed.
 
-`vivajot_voices2.ipynb`: test 1 with 5,000 clips instead of 900. Same bench.
+`tests/test2_clips.ipynb`: test 1 with 5,000 clips instead of 900. Same bench.
 
 | | False wakes/h at 0.90 | normal | soft | very soft |
 |---|---|---|---|---|
@@ -122,7 +122,7 @@ chosen by false alarms per hour on 2 h of held-out talk (the author's recommende
 
 ## Test 3, 2026-11-01: snapshot chosen by false alarms. False wakes 2/h, hearing worse than deployed.
 
-`vivajot_test3.ipynb`: test 2 plus ONE change, the trainer keeps the snapshot with the fewest false
+`tests/test3_snapshot.ipynb`: test 2 plus ONE change, the trainer keeps the snapshot with the fewest false
 alarms on 2 h of held-out talk (checked every 1,000 steps). Same bench.
 
 What the trainer printed, false alarms per hour on the held-out talk at each check (steps 1,000 to 10,000):
@@ -143,7 +143,7 @@ settles instead of lurching, then more clips only once a settled run exists.
 
 ## Test 4, 2026-11-01: slower second half. First model under 1 false wake/h. Hearing 5 points short.
 
-`vivajot_test4.ipynb`: test 3 plus ONE change, the learning rate drops 5x for the second half of training
+`tests/test4_slow_half.ipynb`: test 3 plus ONE change, the learning rate drops 5x for the second half of training
 (verified from the `training_parameters.yaml` the trainer read: learning_rates 0.001, 0.0002). Run on a free
 CPU machine (GPU quota was used up); about 1 h training. Same bench. Model saved as
 `candidates/test4_vivajot.tflite` (not shipped).
@@ -170,7 +170,7 @@ hearing) with the settled training; then quieter, slower clips in the training s
 
 ## Test 5, 2026-11-01: 10,000 clips. Same as test 4. FAIL.
 
-`vivajot_test5.ipynb`: test 4 plus ONE change, 10,000 clips instead of 5,000 (verified from the trainer's
+`tests/test5_more_clips.ipynb`: test 4 plus ONE change, 10,000 clips instead of 5,000 (verified from the trainer's
 `training_parameters.yaml`: training_steps 5000, 5000; learning_rates 0.001, 0.0002; class weights 1/20).
 Three runs were lost to free-Colab drops (two idle CPU runtimes, then the free GPU allowance ran out 10
 minutes into training). The run that finished: clips and features generated on a T4, then CPU training
@@ -206,7 +206,7 @@ the only parts worth keeping.
 
 ## Test 6, 2026-11-02: training gain floor -60 dB. Very soft hearing tripled, normal hearing dropped. FAIL.
 
-`vivajot_test6.ipynb`: test 5 plus ONE change, training turns clips down by up to 60 dB instead of 45
+`tests/test6_gain_floor.ipynb`: test 5 plus ONE change, training turns clips down by up to 60 dB instead of 45
 (features made again with `min_gain_db=-60`; verified: the features cell ran 7 minutes instead of being
 skipped; trainer yaml unchanged from test 5). Run on the same CPU runtime from the test 5 clips. Model
 saved as `candidates/test6_vivajot.tflite` (not shipped).
@@ -237,7 +237,7 @@ best-hearing snapshot among those near the limit and the bench's cutoff does the
 
 ## Test 7, 2026-11-02: snapshot target 3.0/h. Best model so far: very soft 47%, normal 72%. FAIL.
 
-`vivajot_test7.ipynb`: test 6 plus ONE change, `target_minimization` 3.0 instead of 1.0 (verified from the
+`tests/test7_target3.ipynb`: test 6 plus ONE change, `target_minimization` 3.0 instead of 1.0 (verified from the
 trainer's yaml). Same features as test 6 (gain floor -60 dB). Run on the same CPU runtime. Model saved as
 `candidates/test7_vivajot.tflite` (not shipped).
 
@@ -263,7 +263,7 @@ under 1/h on the bench at any cutoff; then the bench says so and test 7 stays th
 
 ## Test 8, 2026-11-02: snapshot target 8.0/h. Closest yet: 4 to 5 points short on normal and quiet. FAIL.
 
-`vivajot_test8.ipynb`: test 7 plus ONE change, `target_minimization` 8.0 (verified from the trainer's yaml).
+`tests/test8_target8.ipynb`: test 7 plus ONE change, `target_minimization` 8.0 (verified from the trainer's yaml).
 Same features as tests 6 and 7. Run on the same CPU runtime. Model saved as `candidates/test8_vivajot.tflite`
 (not shipped).
 
@@ -288,7 +288,7 @@ steps instead of 5,000 (15,000 total, about 2.5 hours on a free CPU runtime).
 
 ## Test 9, 2026-11-02: 10,000-step slow half. Best hearing of any model, but over the false-wake limit. FAIL.
 
-`vivajot_test9.ipynb`: test 8 plus ONE change, training_steps 5,000 then 10,000 (verified from the trainer's
+`tests/test9_long_slow_half.ipynb`: test 8 plus ONE change, training_steps 5,000 then 10,000 (verified from the trainer's
 yaml). Same features. Run on the same CPU runtime, about 2.5 hours. Model saved as `candidates/test9_vivajot.tflite`
 (not shipped).
 

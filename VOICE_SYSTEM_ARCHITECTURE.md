@@ -58,7 +58,7 @@ wake does the speaker send audio to the hub, and only while the hub is asking it
 | `vivajot` ("VivaJot") | The only wake word (listed first, so enabled by default) | 0.90 (window 5) |
 | `stop` (stock) | Interrupts TTS playback locally, enabled only during announcements | stock |
 
-Retired (files kept in `wakewords/`, not in firmware): `help_help` (quiet but missed 16% of
+Retired (files kept in `wakewords/retired/`, not in firmware): `help_help` (quiet but missed 16% of
 clean synthetic clips), `vivajot_help` (never used), `somebody_help` (hears well but
 false-wakes 7×/h on conversation). The measurements and the decision are in
 [VOICE_HELP_WORKFLOW.md](VOICE_HELP_WORKFLOW.md). The deployed `vivajot` model is itself the
