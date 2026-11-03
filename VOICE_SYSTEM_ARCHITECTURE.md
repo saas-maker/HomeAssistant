@@ -45,7 +45,7 @@ in [wakewords/README.md](wakewords/README.md) and
 ## 1. The speaker (ESPHome firmware)
 
 Hardware: Home Assistant Voice Preview Edition (ESP32-S3). Firmware is a VivaJot fork of
-the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.11.02.3**.
+the Nabu Casa YAML, project `SaaS Factory.VivaJot Voice PE`, currently **v26.11.03.1**.
 
 **Privacy model.** Wake-word detection is 100 % on-device (microWakeWord). No audio leaves
 the room until a wake word fires — required for health-facility deployments. Only after a
@@ -57,7 +57,7 @@ up to two listens of about 15 s each. The wake word is ignored while a listen is
 
 | Model | Purpose | Probability cutoff |
 |---|---|---|
-| `hey_jarvis` (stock "Hey Jarvis") | The only wake word (listed first, so enabled by default). The VivaJot models were retired on 2026-11-02 as not reliable enough; files stay in `wakewords/` | 0.97 (window 5), the device's "Wake word sensitivity" setting |
+| `hey_jarvis` (stock "Hey Jarvis") | The only wake word (listed first, so enabled by default). The VivaJot models were retired on 2026-11-02 as not reliable enough; files stay in `wakewords/` | 0.83 (window 5): the device's "Wake word sensitivity" setting, which starts at Very sensitive since 26.11.03.1 (Slightly 0.97 / Moderately 0.92 / Very 0.83) |
 | `stop` (stock) | Interrupts TTS playback locally, enabled only during announcements | stock |
 
 Retired (files kept in `wakewords/retired/`, not in firmware): `help_help` (quiet but missed 16% of

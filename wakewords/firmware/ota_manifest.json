@@ -1,14 +1,14 @@
 {
   "name": "VivaJot Voice PE",
-  "version": "26.11.02.3",
+  "version": "26.11.03.1",
   "home_assistant_domain": "esphome",
   "builds": [
     {
       "chipFamily": "ESP32-S3",
       "ota": {
         "path": "voice-pe-vivajot.ota.bin",
-        "md5": "177ab96109ddaaf1ba15527e0926d446",
-        "summary": "Wake word is now stock Hey Jarvis; the VivaJot wake word models are out. Everything else unchanged",
+        "md5": "cdd5b96a7e5c7cb8d4a93e2d7c502352",
+        "summary": "Wake word sensitivity now starts at Very sensitive so soft voices across the room wake the speaker. Everything else unchanged",
         "release_url": "https://github.com/saas-maker/HomeAssistant/tree/master/wakewords"
       }
     }

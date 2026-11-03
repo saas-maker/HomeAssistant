@@ -190,6 +190,17 @@ follow-up are gone: a resident who wants to add something says "Hey Jarvis" agai
   25 min from expiry); a timed-out or failed request is retried once. Worst case is now about 24 s before the
   speaker gives up, instead of a dropped answer. Not yet confirmed on the hub: the next restart is the test.
 
+### Firmware 26.11.03.1 (2026-11-03): "Wake word sensitivity" starts at Very sensitive
+- Hey Jarvis at the stock default (Slightly sensitive, cutoff 0.97) only woke for Cary close up and
+  clear; a resident 20 feet away would be missed. Moderately (0.92) gave zero false wakes in a 10 min
+  podcast test; Very (0.83) "worked perfectly" across the room, so it is now the firmware default.
+  Residents never see Home Assistant, so the default has to be in the firmware, not a setting.
+- One line changed: the select's `initial_option`. The setting still exists and is still remembered
+  across reboots (`restore_value: true`), so a speaker that already had a value keeps it. A USB flash
+  from the flash page erases the saved value and starts at Very.
+- Nabu Casa's own number for Very is about 1.5 false wakes per hour on the dinner party corpus;
+  watch for them in a quiet house.
+
 ### Firmware 26.11.02.3 (2026-11-02): wake word is stock "Hey Jarvis"
 - The VivaJot models are out of the firmware. Neither the original nor the retrained one both heard
   Cary reliably and ignored the TV; stock Hey Jarvis (0.97, window 5; ~0.6 false wakes/h on the dinner
