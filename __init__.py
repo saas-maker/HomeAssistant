@@ -1,4 +1,4 @@
-import logging, os, json, threading, time, fnmatch, subprocess, urllib.request, shutil
+import logging, os, json, threading, time, fnmatch, subprocess, urllib.request, urllib.error, shutil
 from datetime import timedelta
 from homeassistant.core import HomeAssistant, SupportsResponse
 from homeassistant.helpers import entity_registry as er, device_registry as dr
@@ -8,7 +8,7 @@ from google.api_core.exceptions import NotFound
 _LOGGER = logging.getLogger(__name__)
 DOMAIN = "viva_renamer"
 _STARTED_AT = time.time()          # this component loads at HA start: its age is HA's uptime
-LOG_PATH = "/config/home-assistant.log"
+LOG_LINES = 10000  # Core log lines the health report fetches from the Supervisor
 
 def setup(hass: HomeAssistant, config: dict):
     _LOGGER.info("VivaJot: Starting Zigbee Service...")
@@ -340,9 +340,10 @@ async def process_command(hass, data, pub, path, req, inst):
     #   Topic: vivajot-setup   Body: {"command": "send_health", "installation_id": "<HUB>"}
     # One screen of what the hub knows about itself: boot and uptime, HA version, Zigbee
     # state, every device as HA sees it (unavailable + since), disk, memory, and the last
-    # warnings/errors from home-assistant.log. Published on the confirmation topic like
-    # every other hub message, so it lands in Device_Setup_History (action_type HUB_HEALTH,
-    # text in action_request) with no new table or topic. Capped at 7 KB: a brief, not a dump.
+    # warnings/errors from the Core log, then the raw log itself (last LOG_LINES lines from
+    # the Supervisor). Published on the confirmation topic like every other hub message, so
+    # it lands in Device_Setup_History (action_type HUB_HEALTH, text in action_request)
+    # with no new table or topic. Capped at 2 MB, under Pub/Sub's 10 MB message limit.
     if command == "send_health":
         _LOGGER.warning(f"VivaJot: Health report requested for {inst}")
         try:
@@ -492,7 +493,7 @@ async def process_command(hass, data, pub, path, req, inst):
 def _read_system_facts():
     """Blocking reads for the health report (files, disk): run off the event loop."""
     facts = {"host_uptime_min": None, "disk_free_gb": None, "disk_pct_used": None, "mem_avail_mb": None,
-             "log_first_line": "", "log_tail": [], "log_warn_count": 0, "log_err_count": 0}
+             "log_first_line": "", "log_tail": [], "log_warn_count": 0, "log_err_count": 0, "log_raw": ""}
     try:
         with open("/proc/uptime") as fh:
             facts["host_uptime_min"] = int(float(fh.read().split()[0]) / 60)
@@ -513,14 +514,18 @@ def _read_system_facts():
     except Exception:
         pass
     try:
-        # HA starts a fresh log on every boot, so its first line is the boot time.
-        # Read only the last 400 KB: the log can be large and this must stay quick.
-        with open(LOG_PATH, "rb") as fh:
-            facts["log_first_line"] = fh.readline().decode("utf-8", "replace").strip()[:120]
-            fh.seek(0, 2)
-            size = fh.tell()
-            fh.seek(max(0, size - 400_000))
-            lines = fh.read().decode("utf-8", "replace").splitlines()
+        # Home Assistant OS no longer writes /config/home-assistant.log: Core's log lives in
+        # the host journal, which survives restarts, and the Supervisor serves it over its
+        # API. Ask for the last 10,000 lines; on a quiet hub that reaches back days. If the
+        # Supervisor refuses, the HTTP status goes into the report so we know why.
+        token = os.environ.get("SUPERVISOR_TOKEN", "")
+        req = urllib.request.Request(f"http://supervisor/core/logs?lines={LOG_LINES}",
+                                     headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read().decode("utf-8", "replace")
+        lines = raw.splitlines()
+        facts["log_raw"] = raw
+        facts["log_first_line"] = (lines[0].strip()[:120] if lines else "")
         keep = []
         for ln in lines:
             if " WARNING " in ln:
@@ -531,6 +536,8 @@ def _read_system_facts():
                 continue
             keep.append(ln[:220])
         facts["log_tail"] = keep[-25:]
+    except urllib.error.HTTPError as e:
+        facts["log_tail"] = [f"(Supervisor refused the log: HTTP {e.code} {e.reason})"]
     except Exception as e:
         facts["log_tail"] = [f"(log unreadable: {e})"]
     return facts
@@ -574,9 +581,13 @@ async def build_health_card(hass):
         out.append(f"... {len(rows) - 60} more")
 
     out.append("")
-    out.append(f"LOG: {facts['log_warn_count']} warnings, {facts['log_err_count']} errors in the last 400 KB; last 25:")
+    out.append(f"LOG: {facts['log_warn_count']} warnings, {facts['log_err_count']} errors in the last {LOG_LINES} lines; last 25:")
     out.extend(facts["log_tail"] or ["(none)"])
-    return "\n".join(out)[:7000]
+    out.append("")
+    out.append(f"RAW LOG (last {LOG_LINES} lines as the Supervisor serves them)")
+    out.append(facts["log_raw"] or "(none)")
+    # Pub/Sub takes 10 MB a message; 2 MB holds the brief and far more than 10,000 lines.
+    return "\n".join(out)[:2_000_000]
 
 async def send_to_bq(pub, path, inst, eid, full_name, action, status, req, hass):
     parts = full_name.split('.')
